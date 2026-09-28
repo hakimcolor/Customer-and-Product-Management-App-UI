@@ -1,11 +1,15 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Merriweather } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { ToastContainer } from '@/components/ui/Toast';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const merriweather = Merriweather({
+  subsets: ['latin'],
+  weight: ['300', '400', '700', '900'],
+  variable: '--font-merriweather',
+});
 
 export const metadata: Metadata = {
   title: 'Business ERP',
@@ -19,7 +23,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn(inter.variable, 'antialiased')}>
+      <body
+        className={`${merriweather.variable} antialiased`}
+        suppressHydrationWarning
+      >
         <ThemeProvider>
           <QueryProvider>
             {children}
@@ -29,8 +36,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
-
-function cn(...classes: (string | undefined)[]) {
-  return classes.filter(Boolean).join(' ');
 }
