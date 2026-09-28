@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
@@ -28,16 +27,18 @@ import { formatCurrency } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
 import { productsApi } from '@/lib/api/endpoints';
 
+// Backend uses: title, sellingPrice, purchasePrice, alertQuantity
 interface Product {
   id: number;
-  name: string;
+  title: string;
   sku?: string;
-  retailPrice: number;
-  currentStock: number;
-  alertQty: number;
+  sellingPrice: number;
+  purchasePrice: number;
+  alertQuantity: number;
   status: boolean;
   category?: { name: string };
   brand?: { name: string };
+  stocks?: { quantity: number }[];
 }
 
 interface ProductsResponse {
@@ -51,17 +52,19 @@ interface Category {
 }
 
 type FormState = {
-  name: string;
+  title: string;
   sku: string;
-  retailPrice: string;
-  alertQty: string;
+  sellingPrice: string;
+  purchasePrice: string;
+  alertQuantity: string;
   categoryId: string;
 };
 const emptyForm: FormState = {
-  name: '',
+  title: '',
   sku: '',
-  retailPrice: '',
-  alertQty: '10',
+  sellingPrice: '',
+  purchasePrice: '0',
+  alertQuantity: '5',
   categoryId: '',
 };
 
@@ -106,7 +109,11 @@ export default function ProductsPage() {
       qc.invalidateQueries({ queryKey: ['products'] });
       closeModal();
     },
-    onError: () => toast.error('Failed to create product'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      toast.error(msg ?? 'Failed to create product');
+    },
   });
 
   const updateMutation = useMutation({
@@ -148,10 +155,11 @@ export default function ProductsPage() {
   function openEdit(p: Product) {
     setEditProduct(p);
     setForm({
-      name: p.name,
+      title: p.title,
       sku: p.sku ?? '',
-      retailPrice: String(p.retailPrice),
-      alertQty: String(p.alertQty),
+      sellingPrice: String(p.sellingPrice),
+      purchasePrice: String(p.purchasePrice),
+      alertQuantity: String(p.alertQuantity),
       categoryId: '',
     });
     setFormErrors({});
@@ -166,9 +174,11 @@ export default function ProductsPage() {
 
   function validate() {
     const e: Partial<FormState> = {};
-    if (!form.name.trim()) e.name = 'Name required';
-    if (!form.retailPrice || isNaN(Number(form.retailPrice)))
-      e.retailPrice = 'Valid price required';
+    if (!form.title.trim()) e.title = 'Product name is required';
+    if (!form.sellingPrice || isNaN(Number(form.sellingPrice)))
+      e.sellingPrice = 'Valid selling price required';
+    if (form.purchasePrice && isNaN(Number(form.purchasePrice)))
+      e.purchasePrice = 'Valid purchase price';
     setFormErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -176,10 +186,11 @@ export default function ProductsPage() {
   function handleSubmit() {
     if (!validate()) return;
     const payload: Record<string, unknown> = {
-      name: form.name,
-      sku: form.sku || undefined,
-      retailPrice: parseFloat(form.retailPrice),
-      alertQty: parseInt(form.alertQty) || 10,
+      title: form.title.trim(),
+      sellingPrice: parseFloat(form.sellingPrice),
+      purchasePrice: parseFloat(form.purchasePrice) || 0,
+      alertQuantity: parseInt(form.alertQuantity) || 5,
+      ...(form.sku && { sku: form.sku }),
       ...(form.categoryId && { categoryId: parseInt(form.categoryId) }),
     };
     if (editProduct)
@@ -190,8 +201,14 @@ export default function ProductsPage() {
   const products = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 1;
-  const lowStock = products.filter((p) => p.currentStock <= p.alertQty).length;
-  const outOfStock = products.filter((p) => p.currentStock === 0).length;
+  const lowStock = products.filter((p) => {
+    const qty = p.stocks?.reduce((s, st) => s + st.quantity, 0) ?? 0;
+    return qty <= p.alertQuantity;
+  }).length;
+  const outOfStock = products.filter((p) => {
+    const qty = p.stocks?.reduce((s, st) => s + st.quantity, 0) ?? 0;
+    return qty === 0;
+  }).length;
   const active = products.filter((p) => p.status).length;
 
   return (
@@ -298,8 +315,8 @@ export default function ProductsPage() {
                   'Product',
                   'SKU',
                   'Category',
-                  'Stock',
-                  'Price',
+                  'Purchase',
+                  'Selling',
                   'Status',
                   '',
                 ].map((h) => (
@@ -331,6 +348,9 @@ export default function ProductsPage() {
                   >
                     <Package size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="text-base font-semibold">No products found</p>
+                    <p className="text-sm mt-1">
+                      Add your first product to get started
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -342,10 +362,10 @@ export default function ProductsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] font-bold text-xs shrink-0">
-                          {p.name.charAt(0)}
+                          {p.title.charAt(0)}
                         </div>
                         <span className="font-semibold text-[var(--foreground)] text-base">
-                          {p.name}
+                          {p.title}
                         </span>
                       </div>
                     </td>
@@ -355,19 +375,11 @@ export default function ProductsPage() {
                     <td className="px-4 py-3 text-[var(--foreground)]">
                       {p.category?.name ?? '—'}
                     </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          p.currentStock <= p.alertQty
-                            ? 'text-amber-600 font-bold'
-                            : 'text-[var(--foreground)]'
-                        }
-                      >
-                        {p.currentStock}
-                      </span>
+                    <td className="px-4 py-3 text-[var(--muted)] font-medium">
+                      {formatCurrency(p.purchasePrice)}
                     </td>
                     <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
-                      {formatCurrency(p.retailPrice)}
+                      {formatCurrency(p.sellingPrice)}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={p.status ? 'success' : 'default'}>
@@ -389,9 +401,12 @@ export default function ProductsPage() {
                           onClose={() => setOpenMenuId(null)}
                           items={[
                             {
-                              label: 'View',
+                              label: 'View / Edit',
                               icon: <Eye size={14} />,
-                              href: `/products/${p.id}/edit`,
+                              onClick: () => {
+                                setOpenMenuId(null);
+                                openEdit(p);
+                              },
                             },
                             {
                               label: 'Edit',
@@ -404,7 +419,10 @@ export default function ProductsPage() {
                             {
                               label: 'Duplicate',
                               icon: <Copy size={14} />,
-                              onClick: () => duplicateMutation.mutate(p.id),
+                              onClick: () => {
+                                setOpenMenuId(null);
+                                duplicateMutation.mutate(p.id);
+                              },
                             },
                             {
                               label: 'Delete',
@@ -435,7 +453,7 @@ export default function ProductsPage() {
       <Modal
         open={showModal}
         onClose={closeModal}
-        title={editProduct ? 'Edit Product' : 'Add New Product'}
+        title={editProduct ? `Edit: ${editProduct.title}` : 'Add New Product'}
         size="sm"
         footer={
           <>
@@ -454,34 +472,46 @@ export default function ProductsPage() {
         <div className="flex flex-col gap-4">
           <Input
             label="Product Name *"
-            placeholder="e.g. Samsung A55"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            error={formErrors.name}
+            placeholder="e.g. Samsung Galaxy A55"
+            value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            error={formErrors.title}
           />
           <Input
-            label="SKU"
+            label="SKU (optional)"
             placeholder="e.g. SKU-0001"
             value={form.sku}
             onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Purchase Price"
+              type="number"
+              placeholder="0.00"
+              value={form.purchasePrice}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, purchasePrice: e.target.value }))
+              }
+              error={formErrors.purchasePrice}
+            />
+            <Input
+              label="Selling Price *"
+              type="number"
+              placeholder="0.00"
+              value={form.sellingPrice}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, sellingPrice: e.target.value }))
+              }
+              error={formErrors.sellingPrice}
+            />
+          </div>
           <Input
-            label="Retail Price *"
+            label="Alert Quantity"
             type="number"
-            placeholder="0.00"
-            value={form.retailPrice}
+            placeholder="5"
+            value={form.alertQuantity}
             onChange={(e) =>
-              setForm((f) => ({ ...f, retailPrice: e.target.value }))
-            }
-            error={formErrors.retailPrice}
-          />
-          <Input
-            label="Alert Qty"
-            type="number"
-            placeholder="10"
-            value={form.alertQty}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, alertQty: e.target.value }))
+              setForm((f) => ({ ...f, alertQuantity: e.target.value }))
             }
           />
           <div className="flex flex-col gap-1.5">
@@ -511,7 +541,7 @@ export default function ProductsPage() {
         onClose={() => setDeleteId(null)}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         title="Delete Product"
-        message="Are you sure you want to delete this product? This cannot be undone."
+        message="Are you sure you want to delete this product?"
         confirmLabel="Delete"
       />
     </div>
