@@ -1,37 +1,44 @@
 import apiClient from './client';
-import type { ApiResponse, PaginatedResponse } from '@/types';
 
 // Auth
 export const authApi = {
   login: (data: { email: string; password: string }) =>
-    apiClient.post<ApiResponse<{ token: string; user: unknown }>>(
-      '/auth/login',
-      data
-    ),
+    apiClient.post('/auth/login', data),
   logout: () => apiClient.post('/auth/logout'),
   me: () => apiClient.get('/auth/me'),
   forgotPassword: (email: string) =>
     apiClient.post('/auth/forgot-password', { email }),
   resetPassword: (data: { token: string; password: string }) =>
     apiClient.post('/auth/reset-password', data),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiClient.post('/auth/change-password', data),
 };
 
 // Dashboard
 export const dashboardApi = {
-  getStats: () => apiClient.get('/dashboard/stats'),
-  getChartData: (period: string) =>
-    apiClient.get(`/dashboard/chart?period=${period}`),
-  getRecentSales: () => apiClient.get('/dashboard/recent-sales'),
+  getStats: (params?: Record<string, unknown>) =>
+    apiClient.get('/reports/dashboard', { params }),
+  getDailySummary: (params?: Record<string, unknown>) =>
+    apiClient.get('/reports/daily-summary', { params }),
+  getMonthlyChart: () => apiClient.get('/reports/monthly-chart'),
+  getRecentSales: (params?: Record<string, unknown>) =>
+    apiClient.get('/sales', { params }),
+  getStockAlerts: () => apiClient.get('/products/stock/alerts'),
 };
 
 // Products
 export const productsApi = {
   getAll: (params?: Record<string, unknown>) =>
-    apiClient.get<PaginatedResponse<unknown>>('/products', { params }),
+    apiClient.get('/products', { params }),
   getOne: (id: string) => apiClient.get(`/products/${id}`),
   create: (data: unknown) => apiClient.post('/products', data),
   update: (id: string, data: unknown) => apiClient.put(`/products/${id}`, data),
   delete: (id: string) => apiClient.delete(`/products/${id}`),
+  duplicate: (id: string) => apiClient.post(`/products/${id}/duplicate`),
+  getCategories: () => apiClient.get('/products/categories'),
+  getBrands: () => apiClient.get('/products/brands'),
+  getUnits: () => apiClient.get('/products/units'),
+  getStockAlerts: () => apiClient.get('/products/stock/alerts'),
 };
 
 // Customers
@@ -43,7 +50,10 @@ export const customersApi = {
   update: (id: string, data: unknown) =>
     apiClient.put(`/customers/${id}`, data),
   delete: (id: string) => apiClient.delete(`/customers/${id}`),
-  getLedger: (id: string) => apiClient.get(`/customers/${id}/ledger`),
+  getLedger: (id: string, params?: Record<string, unknown>) =>
+    apiClient.get(`/customers/${id}/ledger`, { params }),
+  getSales: (id: string, params?: Record<string, unknown>) =>
+    apiClient.get(`/customers/${id}/sales`, { params }),
 };
 
 // Suppliers
@@ -65,6 +75,15 @@ export const salesApi = {
   create: (data: unknown) => apiClient.post('/sales', data),
   addPayment: (id: string, data: unknown) =>
     apiClient.post(`/sales/${id}/payment`, data),
+  getSummary: (params?: Record<string, unknown>) =>
+    apiClient.get('/reports/sales', { params }),
+};
+
+// POS
+export const posApi = {
+  createSale: (data: unknown) => apiClient.post('/pos/sale', data),
+  getProducts: (params?: Record<string, unknown>) =>
+    apiClient.get('/pos/products', { params }),
 };
 
 // Purchases
@@ -77,13 +96,37 @@ export const purchasesApi = {
     apiClient.post(`/purchases/${id}/payment`, data),
 };
 
+// Payments
+export const paymentsApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/payments', { params }),
+  create: (data: unknown) => apiClient.post('/payments', data),
+};
+
+// Expenses
+export const expensesApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/expenses', { params }),
+  create: (data: unknown) => apiClient.post('/expenses', data),
+  update: (id: string, data: unknown) => apiClient.put(`/expenses/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/expenses/${id}`),
+};
+
 // Inventory
 export const inventoryApi = {
   getAll: (params?: Record<string, unknown>) =>
-    apiClient.get('/inventory', { params }),
-  getAlerts: () => apiClient.get('/inventory/alerts'),
-  adjustStock: (data: unknown) => apiClient.post('/inventory/adjust', data),
-  transfer: (data: unknown) => apiClient.post('/inventory/transfer', data),
+    apiClient.get('/products/inventory', { params }),
+  getAlerts: () => apiClient.get('/products/alerts'),
+  adjustStock: (data: unknown) => apiClient.post('/products/adjust', data),
+};
+
+// Accounts
+export const accountsApi = {
+  getAll: () => apiClient.get('/accounts'),
+  getOne: (id: string) => apiClient.get(`/accounts/${id}`),
+  create: (data: unknown) => apiClient.post('/accounts', data),
+  getTransactions: (id: string, params?: Record<string, unknown>) =>
+    apiClient.get(`/accounts/${id}/transactions`, { params }),
 };
 
 // Reports
@@ -96,6 +139,8 @@ export const reportsApi = {
     apiClient.get('/reports/inventory', { params }),
   profit: (params: Record<string, unknown>) =>
     apiClient.get('/reports/profit', { params }),
+  ledger: (params: Record<string, unknown>) =>
+    apiClient.get('/reports/ledger', { params }),
 };
 
 // Users
@@ -111,4 +156,24 @@ export const branchesApi = {
   getAll: () => apiClient.get('/branches'),
   create: (data: unknown) => apiClient.post('/branches', data),
   update: (id: string, data: unknown) => apiClient.put(`/branches/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/branches/${id}`),
+};
+
+// Settings
+export const settingsApi = {
+  get: () => apiClient.get('/settings'),
+  update: (data: unknown) => apiClient.put('/settings', data),
+};
+
+// Notifications
+export const notificationsApi = {
+  getAll: () => apiClient.get('/notifications'),
+  markRead: (id: string) => apiClient.patch(`/notifications/${id}/read`),
+  markAllRead: () => apiClient.patch('/notifications/read-all'),
+};
+
+// Audit
+export const auditApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/audit', { params }),
 };

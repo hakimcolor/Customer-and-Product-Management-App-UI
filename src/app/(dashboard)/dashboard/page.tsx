@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart,
   Area,
@@ -19,68 +20,27 @@ import {
   Package,
   Users,
   ArrowRight,
-  Send,
   Sparkles,
+  Send,
 } from 'lucide-react';
 import { Card, StatCard } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, formatDateTime } from '@/lib/utils/format';
+import { dashboardApi } from '@/lib/api/endpoints';
 import Link from 'next/link';
 
-const chartData = [
-  { name: 'Jan', sales: 185000, profit: 42000 },
-  { name: 'Feb', sales: 210000, profit: 55000 },
-  { name: 'Mar', sales: 195000, profit: 48000 },
-  { name: 'Apr', sales: 240000, profit: 68000 },
-  { name: 'May', sales: 228000, profit: 62000 },
-  { name: 'Jun', sales: 275000, profit: 78000 },
-  { name: 'Jul', sales: 310000, profit: 92000 },
-  { name: 'Aug', sales: 295000, profit: 85000 },
-  { name: 'Sep', sales: 245000, profit: 72000 },
+const PERIODS = [
+  { label: '7D', value: 'week' },
+  { label: '30D', value: 'month' },
+  { label: 'Today', value: 'today' },
 ];
 
-const recentSales = [
-  {
-    id: 'INV-1025',
-    customer: 'Rahim Enterprise',
-    amount: 12500,
-    time: 'Today 10:32 AM',
-    status: 'paid',
-  },
-  {
-    id: 'INV-1024',
-    customer: 'Karim Store',
-    amount: 8200,
-    time: 'Today 10:05 AM',
-    status: 'partial',
-  },
-  {
-    id: 'INV-1023',
-    customer: 'ABC Ltd.',
-    amount: 25000,
-    time: 'Yesterday 3:45 PM',
-    status: 'paid',
-  },
-  {
-    id: 'INV-1022',
-    customer: 'XYZ Traders',
-    amount: 5400,
-    time: 'Yesterday 2:20 PM',
-    status: 'unpaid',
-  },
-];
-
-const lowStock = [
-  { name: 'Samsung A55', stock: 3, alert: 10 },
-  { name: 'iPhone 15 Case', stock: 5, alert: 20 },
-  { name: 'USB-C Cable 2m', stock: 2, alert: 15 },
-  { name: 'Wireless Mouse', stock: 4, alert: 10 },
-];
-
-const PERIODS = ['7D', '30D', '3M', '6M', '1Y'];
 const statusMap: Record<string, 'success' | 'warning' | 'danger'> = {
+  PAID: 'success',
+  PARTIAL: 'warning',
+  UNPAID: 'danger',
   paid: 'success',
   partial: 'warning',
   unpaid: 'danger',
@@ -94,8 +54,35 @@ const AI_SUGGESTIONS = [
 ];
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState('6M');
+  const [period, setPeriod] = useState('today');
   const [aiQuery, setAiQuery] = useState('');
+
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['dashboard-stats', period],
+    queryFn: async () => {
+      const res = await dashboardApi.getStats({ period });
+      return res.data?.data ?? res.data;
+    },
+    refetchInterval: 60000,
+  });
+
+  const { data: chartData } = useQuery({
+    queryKey: ['monthly-chart'],
+    queryFn: async () => {
+      const res = await dashboardApi.getMonthlyChart();
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const salesTotal = stats?.periodSales?._sum?.totalAmount ?? 0;
+  const purchasesTotal = stats?.periodPurchases?._sum?.totalAmount ?? 0;
+  const expensesTotal = stats?.periodExpenses?._sum?.amount ?? 0;
+  const cashBalance = (stats?.cashBalance ?? 0) + (stats?.bankBalance ?? 0);
+  const customerDues = stats?.totalCustomerDues ?? 0;
+  const supplierDues = stats?.totalSupplierDues ?? 0;
+  const stockValue = stats?.stockValue ?? 0;
+  const recentSales = stats?.recentSales ?? [];
+  const lowStockItems = stats?.lowStockProducts ?? [];
 
   return (
     <div>
@@ -103,32 +90,47 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle="Business overview and key metrics"
         breadcrumbs={[{ label: 'Dashboard' }]}
+        actions={
+          <div className="flex gap-1 rounded-lg border border-[var(--border)] overflow-hidden">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value)}
+                className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  period === p.value
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--card)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        }
       />
 
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard
           title="Total Sales"
-          value={formatCurrency(2450000)}
-          change={12.5}
+          value={isLoading ? '...' : formatCurrency(salesTotal)}
           icon={<ShoppingCart size={20} className="text-[var(--primary)]" />}
         />
         <StatCard
           title="Total Purchases"
-          value={formatCurrency(1300000)}
-          change={8.2}
+          value={isLoading ? '...' : formatCurrency(purchasesTotal)}
           icon={<Package size={20} className="text-blue-600" />}
           iconBg="bg-blue-100 dark:bg-blue-900/30"
         />
         <StatCard
-          title="Net Profit"
-          value={formatCurrency(720000)}
-          change={15.4}
-          icon={<TrendingUp size={20} className="text-[var(--primary)]" />}
+          title="Total Expenses"
+          value={isLoading ? '...' : formatCurrency(expensesTotal)}
+          icon={<TrendingUp size={20} className="text-orange-500" />}
+          iconBg="bg-orange-100 dark:bg-orange-900/30"
         />
         <StatCard
-          title="Cash Balance"
-          value={formatCurrency(3500000)}
+          title="Cash & Bank Balance"
+          value={isLoading ? '...' : formatCurrency(cashBalance)}
           icon={<Wallet size={20} className="text-purple-600" />}
           iconBg="bg-purple-100 dark:bg-purple-900/30"
         />
@@ -137,26 +139,26 @@ export default function DashboardPage() {
       {/* KPI Row 2 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <StatCard
-          title="Receivable"
-          value={formatCurrency(425000)}
+          title="Customer Dues"
+          value={isLoading ? '...' : formatCurrency(customerDues)}
           icon={<DollarSign size={20} className="text-amber-600" />}
           iconBg="bg-amber-100 dark:bg-amber-900/30"
         />
         <StatCard
-          title="Payable"
-          value={formatCurrency(210000)}
+          title="Supplier Payable"
+          value={isLoading ? '...' : formatCurrency(supplierDues)}
           icon={<DollarSign size={20} className="text-red-500" />}
           iconBg="bg-red-100 dark:bg-red-900/30"
         />
         <StatCard
           title="Stock Value"
-          value={formatCurrency(3200000)}
+          value={isLoading ? '...' : formatCurrency(stockValue)}
           icon={<Package size={20} className="text-[var(--primary)]" />}
         />
         <StatCard
-          title="Today Expenses"
-          value={formatCurrency(45000)}
-          icon={<Wallet size={20} className="text-gray-600" />}
+          title="Sales Count"
+          value={isLoading ? '...' : String(stats?.periodSales?._count ?? 0)}
+          icon={<ShoppingCart size={20} className="text-gray-600" />}
           iconBg="bg-gray-100 dark:bg-slate-700"
         />
       </div>
@@ -164,35 +166,18 @@ export default function DashboardPage() {
       {/* Chart + Inventory */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-5">
         <Card padding={false} className="xl:col-span-2">
-          <div className="flex items-center justify-between p-5 pb-0">
-            <div>
-              <h2 className="font-semibold text-[var(--foreground)]">
-                Sales & Profit Overview
-              </h2>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                Revenue trends over time
-              </p>
-            </div>
-            <div className="flex gap-1">
-              {PERIODS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`cursor-pointer px-2.5 py-1 text-xs rounded-lg font-medium transition-colors select-none ${
-                    period === p
-                      ? 'bg-[var(--primary)] text-white shadow-sm'
-                      : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-[var(--foreground)]'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+          <div className="p-5 pb-0">
+            <h2 className="font-semibold text-[var(--foreground)] text-lg">
+              Sales & Profit Overview
+            </h2>
+            <p className="text-sm text-[var(--muted)] mt-0.5">
+              Monthly revenue trends
+            </p>
           </div>
           <div className="p-5 pt-4">
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart
-                data={chartData}
+                data={chartData ?? []}
                 margin={{ top: 5, right: 5, bottom: 0, left: 0 }}
               >
                 <defs>
@@ -200,14 +185,10 @@ export default function DashboardPage() {
                     <stop offset="5%" stopColor="#16a34a" stopOpacity={0.15} />
                     <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="gProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
-                  dataKey="name"
+                  dataKey="month"
                   tick={{ fontSize: 12, fill: 'var(--muted)' }}
                   axisLine={false}
                   tickLine={false}
@@ -223,11 +204,11 @@ export default function DashboardPage() {
                     background: 'var(--card)',
                     border: '1px solid var(--border)',
                     borderRadius: 12,
-                    fontSize: 12,
+                    fontSize: 13,
                   }}
                   formatter={(v: number) => [formatCurrency(v), '']}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
                 <Area
                   type="monotone"
                   dataKey="sales"
@@ -242,7 +223,7 @@ export default function DashboardPage() {
                   name="Profit"
                   stroke="#22c55e"
                   strokeWidth={2}
-                  fill="url(#gProfit)"
+                  fill="none"
                   strokeDasharray="5 5"
                 />
               </AreaChart>
@@ -250,41 +231,41 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Inventory Intelligence */}
+        {/* Inventory Alerts */}
         <Card>
-          <h2 className="font-semibold text-[var(--foreground)] mb-4">
-            Inventory Intelligence
+          <h2 className="font-semibold text-[var(--foreground)] text-lg mb-4">
+            Inventory Alerts
           </h2>
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
               {
                 label: 'Low Stock',
-                value: 18,
+                value: stats?.lowStockCount ?? 0,
                 bg: 'bg-amber-50 dark:bg-amber-900/20',
                 color: 'text-amber-600',
               },
               {
                 label: 'Out of Stock',
-                value: 7,
+                value: stats?.outOfStockCount ?? 0,
                 bg: 'bg-red-50 dark:bg-red-900/20',
                 color: 'text-red-500',
               },
               {
-                label: 'Expiring Soon',
-                value: 12,
-                bg: 'bg-orange-50 dark:bg-orange-900/20',
-                color: 'text-orange-600',
+                label: 'Total Products',
+                value: stats?.totalProducts ?? 0,
+                bg: 'bg-blue-50 dark:bg-blue-900/20',
+                color: 'text-blue-600',
               },
               {
-                label: 'Slow Moving',
-                value: 24,
+                label: 'Categories',
+                value: stats?.totalCategories ?? 0,
                 bg: 'bg-gray-100 dark:bg-slate-700',
                 color: 'text-[var(--muted)]',
               },
             ].map((item) => (
               <div key={item.label} className={`rounded-xl p-3 ${item.bg}`}>
                 <p className={`text-2xl font-bold ${item.color}`}>
-                  {item.value}
+                  {isLoading ? '—' : item.value}
                 </p>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
                   {item.label}
@@ -293,28 +274,44 @@ export default function DashboardPage() {
             ))}
           </div>
           <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">
-            Low Stock Products
+            Low Stock Items
           </h3>
           <div className="space-y-2.5">
-            {lowStock.map((p) => (
-              <div key={p.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle
-                    size={13}
-                    className="text-amber-500 shrink-0"
-                  />
-                  <span className="text-sm text-[var(--foreground)] truncate max-w-[120px]">
-                    {p.name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--muted)]">
-                    {p.stock}/{p.alert}
-                  </span>
-                  <Badge variant="warning">Low</Badge>
-                </div>
-              </div>
-            ))}
+            {lowStockItems
+              .slice(0, 4)
+              .map(
+                (p: {
+                  name: string;
+                  currentStock: number;
+                  alertQty: number;
+                }) => (
+                  <div
+                    key={p.name}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle
+                        size={13}
+                        className="text-amber-500 shrink-0"
+                      />
+                      <span className="text-sm text-[var(--foreground)] truncate max-w-[120px]">
+                        {p.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--muted)]">
+                        {p.currentStock}/{p.alertQty}
+                      </span>
+                      <Badge variant="warning">Low</Badge>
+                    </div>
+                  </div>
+                )
+              )}
+            {lowStockItems.length === 0 && !isLoading && (
+              <p className="text-sm text-[var(--muted)] text-center py-2">
+                No alerts 🎉
+              </p>
+            )}
           </div>
           <Link href="/inventory">
             <Button
@@ -329,66 +326,99 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Sales + Dues + AI */}
+      {/* Recent Sales + Due Overview + AI Copilot */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Recent Sales */}
         <Card>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-[var(--foreground)]">
+            <h2 className="font-semibold text-[var(--foreground)] text-lg">
               Recent Sales
             </h2>
             <Link
               href="/sales"
-              className="cursor-pointer text-xs text-[var(--primary)] hover:underline flex items-center gap-1"
+              className="text-xs text-[var(--primary)] hover:underline flex items-center gap-1"
             >
               View All <ArrowRight size={12} />
             </Link>
           </div>
-          <div className="space-y-0 divide-y divide-[var(--border)]">
-            {recentSales.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between py-3 hover:bg-gray-50 dark:hover:bg-slate-800/40 rounded-lg px-2 -mx-2 transition-colors cursor-default"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[var(--primary)]">
-                    {s.id}
-                  </p>
-                  <p className="text-xs font-medium text-[var(--foreground)]">
-                    {s.customer}
-                  </p>
-                  <p className="text-xs text-[var(--muted)]">{s.time}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">
-                    {formatCurrency(s.amount)}
-                  </p>
-                  <Badge variant={statusMap[s.status]}>{s.status}</Badge>
-                </div>
-              </div>
-            ))}
+          <div className="divide-y divide-[var(--border)]">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="py-3 animate-pulse flex justify-between"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-24" />
+                      <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-32" />
+                    </div>
+                    <div className="h-5 bg-gray-200 dark:bg-slate-700 rounded w-16" />
+                  </div>
+                ))
+              : recentSales
+                  .slice(0, 4)
+                  .map(
+                    (s: {
+                      id: number;
+                      invoiceNo: string;
+                      customer?: { name: string };
+                      totalAmount: number;
+                      paymentStatus: string;
+                      date: string;
+                    }) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between py-3 hover:bg-gray-50 dark:hover:bg-slate-800/40 rounded-lg px-2 -mx-2 transition-colors"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-[var(--primary)]">
+                            {s.invoiceNo}
+                          </p>
+                          <p className="text-sm font-medium text-[var(--foreground)]">
+                            {s.customer?.name ?? '—'}
+                          </p>
+                          <p className="text-xs text-[var(--muted)]">
+                            {formatDateTime(s.date)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-[var(--foreground)]">
+                            {formatCurrency(s.totalAmount)}
+                          </p>
+                          <Badge
+                            variant={statusMap[s.paymentStatus] ?? 'default'}
+                          >
+                            {s.paymentStatus}
+                          </Badge>
+                        </div>
+                      </div>
+                    )
+                  )}
+            {!isLoading && recentSales.length === 0 && (
+              <p className="text-sm text-[var(--muted)] py-6 text-center">
+                No sales yet
+              </p>
+            )}
           </div>
         </Card>
 
-        {/* Due Overview */}
         <Card>
-          <h2 className="font-semibold text-[var(--foreground)] mb-4">
+          <h2 className="font-semibold text-[var(--foreground)] text-lg mb-4">
             Due Overview
           </h2>
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div className="p-4 rounded-xl bg-[var(--primary-light)] dark:bg-green-900/20 text-center">
               <p className="text-xs text-[var(--muted)] mb-1">Receivable</p>
               <p className="text-xl font-bold text-[var(--primary)]">
-                {formatCurrency(425000)}
+                {formatCurrency(customerDues)}
               </p>
-              <p className="text-xs text-[var(--muted)] mt-1">42 Customers</p>
+              <p className="text-xs text-[var(--muted)] mt-1">from Customers</p>
             </div>
             <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-center">
               <p className="text-xs text-[var(--muted)] mb-1">Payable</p>
               <p className="text-xl font-bold text-red-500">
-                {formatCurrency(210000)}
+                {formatCurrency(supplierDues)}
               </p>
-              <p className="text-xs text-[var(--muted)] mt-1">18 Suppliers</p>
+              <p className="text-xs text-[var(--muted)] mt-1">to Suppliers</p>
             </div>
           </div>
           <div className="space-y-2">
@@ -415,13 +445,12 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* AI Copilot */}
         <Card className="flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <div className="p-1.5 rounded-lg bg-[var(--primary-light)]">
               <Sparkles size={16} className="text-[var(--primary)]" />
             </div>
-            <h2 className="font-semibold text-[var(--foreground)]">
+            <h2 className="font-semibold text-[var(--foreground)] text-lg">
               AI Business Copilot
             </h2>
           </div>
@@ -430,21 +459,18 @@ export default function DashboardPage() {
               value={aiQuery}
               onChange={(e) => setAiQuery(e.target.value)}
               placeholder="Ask anything about your business..."
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && aiQuery.trim()) setAiQuery('');
-              }}
               className="cursor-text flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
             />
             <button
               onClick={() => setAiQuery('')}
-              className="cursor-pointer p-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] active:scale-95 transition-all"
+              className="cursor-pointer p-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] transition-all"
               aria-label="Send"
             >
               <Send size={16} />
             </button>
           </div>
           <div>
-            <p className="text-xs text-[var(--muted)] font-semibold mb-2 uppercase tracking-wider">
+            <p className="text-xs text-[var(--muted)] font-bold mb-2 uppercase tracking-wider">
               Suggested
             </p>
             <div className="space-y-1.5">
@@ -452,7 +478,7 @@ export default function DashboardPage() {
                 <button
                   key={q}
                   onClick={() => setAiQuery(q)}
-                  className="cursor-pointer w-full text-left text-xs px-3 py-2 rounded-lg bg-[var(--background)] text-[var(--foreground)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] border border-[var(--border)] hover:border-[var(--primary)] transition-all"
+                  className="cursor-pointer w-full text-left text-sm px-3 py-2 rounded-lg bg-[var(--background)] text-[var(--foreground)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)] border border-[var(--border)] hover:border-[var(--primary)] transition-all"
                 >
                   • {q}
                 </button>

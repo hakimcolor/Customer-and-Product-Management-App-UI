@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
   Search,
@@ -8,53 +9,190 @@ import {
   Trash2,
   Eye,
   Copy,
-  BarChart2,
   MoreVertical,
+  Package,
+  AlertTriangle,
+  Tag,
+  Boxes,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DropdownMenu, DropdownTrigger } from '@/components/ui/DropdownMenu';
 import { formatCurrency } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
+import { productsApi } from '@/lib/api/endpoints';
 
-const mockProducts = Array.from({ length: 20 }, (_, i) => ({
-  id: String(i + 1),
-  name: [
-    'Samsung A55',
-    'iPhone 15',
-    'Laptop Dell',
-    'USB Hub',
-    'Wireless Mouse',
-    'Mechanical Keyboard',
-  ][i % 6],
-  sku: `SKU-${String(i + 1).padStart(4, '0')}`,
-  category: ['Electronics', 'Accessories', 'Computers'][i % 3],
-  retailPrice: [45000, 120000, 85000, 2500, 1800, 5500][i % 6],
-  currentStock: [24, 5, 12, 55, 3, 18][i % 6],
-  alertQty: 10,
-  status: i % 7 === 0 ? 'inactive' : 'active',
-}));
+interface Product {
+  id: number;
+  name: string;
+  sku?: string;
+  retailPrice: number;
+  currentStock: number;
+  alertQty: number;
+  status: boolean;
+  category?: { name: string };
+  brand?: { name: string };
+}
+
+interface ProductsResponse {
+  data: Product[];
+  total: number;
+  totalPages: number;
+}
+interface Category {
+  id: number;
+  name: string;
+}
+
+type FormState = {
+  name: string;
+  sku: string;
+  retailPrice: string;
+  alertQty: string;
+  categoryId: string;
+};
+const emptyForm: FormState = {
+  name: '',
+  sku: '',
+  retailPrice: '',
+  alertQty: '10',
+  categoryId: '',
+};
 
 export default function ProductsPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [status, setStatus] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<Partial<FormState>>({});
 
-  const filtered = mockProducts.filter((p) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
-    const matchCat = !category || p.category.toLowerCase() === category;
-    const matchStatus = !status || p.status === status;
-    return matchSearch && matchCat && matchStatus;
+  const { data, isLoading } = useQuery<ProductsResponse>({
+    queryKey: ['products', page, search, categoryFilter, statusFilter],
+    queryFn: async () => {
+      const params: Record<string, unknown> = { page, limit: 10 };
+      if (search) params.search = search;
+      if (categoryFilter) params.categoryId = categoryFilter;
+      if (statusFilter)
+        params.status = statusFilter === 'active' ? 'true' : 'false';
+      const res = await productsApi.getAll(params);
+      return res.data?.data ?? res.data;
+    },
   });
+
+  const { data: categories } = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const res = await productsApi.getCategories();
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (d: Record<string, unknown>) => productsApi.create(d),
+    onSuccess: () => {
+      toast.success('Product created');
+      qc.invalidateQueries({ queryKey: ['products'] });
+      closeModal();
+    },
+    onError: () => toast.error('Failed to create product'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      productsApi.update(id, data),
+    onSuccess: () => {
+      toast.success('Product updated');
+      qc.invalidateQueries({ queryKey: ['products'] });
+      closeModal();
+    },
+    onError: () => toast.error('Failed to update product'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => productsApi.delete(String(id)),
+    onSuccess: () => {
+      toast.success('Product deleted');
+      qc.invalidateQueries({ queryKey: ['products'] });
+      setDeleteId(null);
+    },
+    onError: () => toast.error('Failed to delete product'),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: (id: number) => productsApi.duplicate(String(id)),
+    onSuccess: () => {
+      toast.success('Product duplicated');
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: () => toast.error('Duplicate failed'),
+  });
+
+  function openAdd() {
+    setEditProduct(null);
+    setForm(emptyForm);
+    setFormErrors({});
+    setShowModal(true);
+  }
+  function openEdit(p: Product) {
+    setEditProduct(p);
+    setForm({
+      name: p.name,
+      sku: p.sku ?? '',
+      retailPrice: String(p.retailPrice),
+      alertQty: String(p.alertQty),
+      categoryId: '',
+    });
+    setFormErrors({});
+    setShowModal(true);
+  }
+  function closeModal() {
+    setShowModal(false);
+    setEditProduct(null);
+    setForm(emptyForm);
+    setFormErrors({});
+  }
+
+  function validate() {
+    const e: Partial<FormState> = {};
+    if (!form.name.trim()) e.name = 'Name required';
+    if (!form.retailPrice || isNaN(Number(form.retailPrice)))
+      e.retailPrice = 'Valid price required';
+    setFormErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function handleSubmit() {
+    if (!validate()) return;
+    const payload: Record<string, unknown> = {
+      name: form.name,
+      sku: form.sku || undefined,
+      retailPrice: parseFloat(form.retailPrice),
+      alertQty: parseInt(form.alertQty) || 10,
+      ...(form.categoryId && { categoryId: parseInt(form.categoryId) }),
+    };
+    if (editProduct)
+      updateMutation.mutate({ id: String(editProduct.id), data: payload });
+    else createMutation.mutate(payload);
+  }
+
+  const products = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  const lowStock = products.filter((p) => p.currentStock <= p.alertQty).length;
+  const outOfStock = products.filter((p) => p.currentStock === 0).length;
+  const active = products.filter((p) => p.status).length;
 
   return (
     <div>
@@ -63,25 +201,44 @@ export default function ProductsPage() {
         subtitle="Manage your product catalog"
         breadcrumbs={[{ label: 'Inventory' }, { label: 'Products' }]}
         actions={
-          <Link href="/products/new">
-            <Button icon={<Plus size={16} />}>Add Product</Button>
-          </Link>
+          <Button icon={<Plus size={16} />} onClick={openAdd}>
+            Add Product
+          </Button>
         }
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
         {[
-          { label: 'Total Products', value: '248' },
-          { label: 'Active', value: '231' },
-          { label: 'Low Stock', value: '18' },
-          { label: 'Out of Stock', value: '7' },
+          {
+            label: 'Total Products',
+            value: total,
+            icon: <Package size={20} className="text-[var(--primary)]" />,
+          },
+          {
+            label: 'Active',
+            value: active,
+            icon: <Tag size={20} className="text-blue-500" />,
+          },
+          {
+            label: 'Low Stock',
+            value: lowStock,
+            icon: <AlertTriangle size={20} className="text-amber-500" />,
+          },
+          {
+            label: 'Out of Stock',
+            value: outOfStock,
+            icon: <Boxes size={20} className="text-red-500" />,
+          },
         ].map((s) => (
           <Card key={s.label}>
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
-              {s.label}
-            </p>
-            <p className="text-2xl font-bold text-[var(--foreground)] mt-1">
-              {s.value}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-[var(--muted)] uppercase tracking-wider font-semibold">
+                {s.label}
+              </p>
+              {s.icon}
+            </div>
+            <p className="text-2xl font-bold text-[var(--foreground)]">
+              {isLoading ? '—' : s.value}
             </p>
           </Card>
         ))}
@@ -105,22 +262,24 @@ export default function ProductsPage() {
             />
           </div>
           <select
-            value={category}
+            value={categoryFilter}
             onChange={(e) => {
-              setCategory(e.target.value);
+              setCategoryFilter(e.target.value);
               setPage(1);
             }}
             className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
           >
             <option value="">All Categories</option>
-            <option value="electronics">Electronics</option>
-            <option value="accessories">Accessories</option>
-            <option value="computers">Computers</option>
+            {(categories ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </select>
           <select
-            value={status}
+            value={statusFilter}
             onChange={(e) => {
-              setStatus(e.target.value);
+              setStatusFilter(e.target.value);
               setPage(1);
             }}
             className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
@@ -146,7 +305,7 @@ export default function ProductsPage() {
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
+                    className="px-4 py-3 text-left text-xs font-bold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -154,56 +313,65 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 7 }).map((__, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-20" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : products.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-16 text-center text-[var(--muted)]"
+                    className="px-4 py-14 text-center text-[var(--muted)]"
                   >
-                    No products found
+                    <Package size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-base font-semibold">No products found</p>
                   </td>
                 </tr>
               ) : (
-                filtered.slice((page - 1) * 10, page * 10).map((p) => (
+                products.map((p) => (
                   <tr
                     key={p.id}
                     className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] font-bold text-xs shrink-0 select-none">
+                        <div className="w-8 h-8 rounded-lg bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] font-bold text-xs shrink-0">
                           {p.name.charAt(0)}
                         </div>
-                        <span className="font-medium text-[var(--foreground)]">
+                        <span className="font-semibold text-[var(--foreground)] text-base">
                           {p.name}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                      {p.sku}
+                      {p.sku ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-[var(--foreground)]">
-                      {p.category}
+                      {p.category?.name ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={
                           p.currentStock <= p.alertQty
-                            ? 'text-amber-600 font-semibold'
+                            ? 'text-amber-600 font-bold'
                             : 'text-[var(--foreground)]'
                         }
                       >
                         {p.currentStock}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">
+                    <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
                       {formatCurrency(p.retailPrice)}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge
-                        variant={p.status === 'active' ? 'success' : 'default'}
-                      >
-                        {p.status}
+                      <Badge variant={p.status ? 'success' : 'default'}>
+                        {p.status ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
@@ -223,23 +391,20 @@ export default function ProductsPage() {
                             {
                               label: 'View',
                               icon: <Eye size={14} />,
-                              onClick: () => toast.success(`Viewing ${p.name}`),
+                              href: `/products/${p.id}/edit`,
                             },
                             {
                               label: 'Edit',
                               icon: <Edit size={14} />,
-                              href: `/products/${p.id}/edit`,
+                              onClick: () => {
+                                setOpenMenuId(null);
+                                openEdit(p);
+                              },
                             },
                             {
                               label: 'Duplicate',
                               icon: <Copy size={14} />,
-                              onClick: () =>
-                                toast.success('Product duplicated'),
-                            },
-                            {
-                              label: 'Stock History',
-                              icon: <BarChart2 size={14} />,
-                              href: `/inventory`,
+                              onClick: () => duplicateMutation.mutate(p.id),
                             },
                             {
                               label: 'Delete',
@@ -257,23 +422,94 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
-
         <Pagination
           page={page}
-          totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
-          total={filtered.length}
+          totalPages={Math.max(1, totalPages)}
+          total={total}
           limit={10}
           onPageChange={setPage}
         />
       </Card>
 
+      {/* Add / Edit Modal */}
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title={editProduct ? 'Edit Product' : 'Add New Product'}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              loading={createMutation.isPending || updateMutation.isPending}
+            >
+              {editProduct ? 'Save Changes' : 'Add Product'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Product Name *"
+            placeholder="e.g. Samsung A55"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            error={formErrors.name}
+          />
+          <Input
+            label="SKU"
+            placeholder="e.g. SKU-0001"
+            value={form.sku}
+            onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+          />
+          <Input
+            label="Retail Price *"
+            type="number"
+            placeholder="0.00"
+            value={form.retailPrice}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, retailPrice: e.target.value }))
+            }
+            error={formErrors.retailPrice}
+          />
+          <Input
+            label="Alert Qty"
+            type="number"
+            placeholder="10"
+            value={form.alertQty}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, alertQty: e.target.value }))
+            }
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">
+              Category
+            </label>
+            <select
+              value={form.categoryId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, categoryId: e.target.value }))
+              }
+              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+            >
+              <option value="">Select category...</option>
+              {(categories ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
+
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => {
-          setDeleteId(null);
-          toast.success('Product deleted');
-        }}
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         title="Delete Product"
         message="Are you sure you want to delete this product? This cannot be undone."
         confirmLabel="Delete"
