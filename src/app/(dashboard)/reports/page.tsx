@@ -8,14 +8,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   Legend,
 } from 'recharts';
 import {
   FileDown,
   Printer,
-  BarChart2,
   ShoppingCart,
   Package,
   DollarSign,
@@ -26,6 +23,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils/format';
+import { toast } from '@/components/ui/Toast';
 
 const CATEGORIES = [
   {
@@ -99,7 +97,7 @@ export default function ReportsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         {/* Sidebar */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.label}
@@ -107,30 +105,31 @@ export default function ReportsPage() {
                 setActiveCategory(cat.label);
                 setActiveReport(cat.reports[0]);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+              className={`cursor-pointer w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all select-none border ${
                 activeCategory === cat.label
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)]'
               }`}
             >
-              {cat.icon} {cat.label}
+              <span className="shrink-0">{cat.icon}</span>
+              {cat.label}
             </button>
           ))}
         </div>
 
         {/* Content */}
         <div className="lg:col-span-3 space-y-5">
-          {/* Report picker + filters */}
+          {/* Filters */}
           <Card>
             <div className="flex flex-wrap gap-3 items-end">
               <div className="flex-1 min-w-40">
-                <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
                   Report Type
                 </label>
                 <select
                   value={activeReport}
                   onChange={(e) => setActiveReport(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
                 >
                   {currentCategory?.reports.map((r) => (
                     <option key={r}>{r}</option>
@@ -138,32 +137,34 @@ export default function ReportsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
                   From
                 </label>
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
                   To
                 </label>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
                 />
               </div>
-              <Button>Generate</Button>
+              <Button onClick={() => toast.success('Report generated')}>
+                Generate
+              </Button>
             </div>
           </Card>
 
-          {/* Summary cards */}
+          {/* Summary */}
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Total Sales', value: formatCurrency(1333000) },
@@ -183,15 +184,21 @@ export default function ReportsPage() {
 
           {/* Chart */}
           <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-[var(--foreground)]">
-                {activeReport}
-              </h2>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-semibold text-[var(--foreground)]">
+                  {activeReport}
+                </h2>
+                <p className="text-xs text-[var(--muted)] mt-0.5">
+                  {dateFrom} — {dateTo}
+                </p>
+              </div>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   icon={<FileDown size={14} />}
+                  onClick={() => toast.success('Exporting...')}
                 >
                   Export
                 </Button>
@@ -199,6 +206,7 @@ export default function ReportsPage() {
                   variant="outline"
                   size="sm"
                   icon={<Printer size={14} />}
+                  onClick={() => toast.success('Printing...')}
                 >
                   Print
                 </Button>
@@ -227,6 +235,7 @@ export default function ReportsPage() {
                     background: 'var(--card)',
                     border: '1px solid var(--border)',
                     borderRadius: 12,
+                    fontSize: 12,
                   }}
                   formatter={(v: number) => [formatCurrency(v), '']}
                 />

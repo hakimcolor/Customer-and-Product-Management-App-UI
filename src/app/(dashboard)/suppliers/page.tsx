@@ -1,13 +1,14 @@
 'use client';
 import { useState } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DropdownMenu, DropdownTrigger } from '@/components/ui/DropdownMenu';
 import { formatCurrency } from '@/lib/utils/format';
+import { toast } from '@/components/ui/Toast';
 
 const mockSuppliers = Array.from({ length: 15 }, (_, i) => ({
   id: String(i + 1),
@@ -18,12 +19,11 @@ const mockSuppliers = Array.from({ length: 15 }, (_, i) => ({
     'Dhaka Distributors',
     'Star Suppliers',
   ][i % 5],
-  phone: `01${7 + (i % 3)}${String(10000000 + i * 2222222).slice(0, 8)}`,
+  phone: `0180000${String(1000 + i)}`,
   email: `supplier${i + 1}@example.com`,
   totalPurchases: (i + 1) * 85000,
   totalPaid: (i + 1) * 70000,
   outstanding: (i + 1) * 15000,
-  createdAt: '2026-01-10',
 }));
 
 export default function SuppliersPage() {
@@ -42,7 +42,14 @@ export default function SuppliersPage() {
         title="Suppliers"
         subtitle="Manage your supplier network"
         breadcrumbs={[{ label: 'People' }, { label: 'Suppliers' }]}
-        actions={<Button icon={<Plus size={16} />}>Add Supplier</Button>}
+        actions={
+          <Button
+            icon={<Plus size={16} />}
+            onClick={() => toast.success('Add supplier form coming soon')}
+          >
+            Add Supplier
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
@@ -65,19 +72,27 @@ export default function SuppliersPage() {
 
       <Card padding={false}>
         <div className="p-4 border-b border-[var(--border)]">
-          <Input
-            placeholder="Search suppliers..."
-            leftIcon={<Search size={14} />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
-          />
+          <div className="relative max-w-xs">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+            />
+            <input
+              placeholder="Search suppliers..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 dark:bg-slate-800/60">
+              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
                 {[
                   'Supplier',
                   'Phone',
@@ -88,7 +103,7 @@ export default function SuppliersPage() {
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
+                    className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -96,77 +111,77 @@ export default function SuppliersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {filtered.slice((page - 1) * 10, page * 10).map((supplier) => (
+              {filtered.slice((page - 1) * 10, page * 10).map((s) => (
                 <tr
-                  key={supplier.id}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
+                  key={s.id}
+                  className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0">
-                        {supplier.name.charAt(0)}
+                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0 select-none">
+                        {s.name.charAt(0)}
                       </div>
                       <div>
                         <p className="font-medium text-[var(--foreground)]">
-                          {supplier.name}
+                          {s.name}
                         </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          {supplier.email}
-                        </p>
+                        <p className="text-xs text-[var(--muted)]">{s.email}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[var(--foreground)]">
-                    {supplier.phone}
+                    {s.phone}
                   </td>
                   <td className="px-4 py-3 font-medium text-[var(--foreground)]">
-                    {formatCurrency(supplier.totalPurchases)}
+                    {formatCurrency(s.totalPurchases)}
                   </td>
                   <td className="px-4 py-3 text-green-600 font-medium">
-                    {formatCurrency(supplier.totalPaid)}
+                    {formatCurrency(s.totalPaid)}
                   </td>
                   <td className="px-4 py-3">
                     <span
                       className={
-                        supplier.outstanding > 0
+                        s.outstanding > 0
                           ? 'text-amber-600 font-medium'
                           : 'text-[var(--foreground)]'
                       }
                     >
-                      {formatCurrency(supplier.outstanding)}
+                      {formatCurrency(s.outstanding)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 relative">
-                    <button
-                      onClick={() =>
-                        setOpenMenuId(
-                          openMenuId === supplier.id ? null : supplier.id
-                        )
-                      }
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)]"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenuId === supplier.id && (
-                      <div className="absolute right-8 top-8 z-10 w-36 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg py-1">
-                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800">
-                          <Eye size={14} className="text-[var(--muted)]" /> View
-                        </button>
-                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800">
-                          <Edit size={14} className="text-[var(--muted)]" />{' '}
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => {
-                            setDeleteId(supplier.id);
-                            setOpenMenuId(null);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-gray-50 dark:hover:bg-slate-800"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
-                    )}
+                  <td className="px-4 py-3">
+                    <DropdownTrigger>
+                      <button
+                        onClick={() =>
+                          setOpenMenuId(openMenuId === s.id ? null : s.id)
+                        }
+                        className="cursor-pointer p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      <DropdownMenu
+                        open={openMenuId === s.id}
+                        onClose={() => setOpenMenuId(null)}
+                        items={[
+                          {
+                            label: 'View Profile',
+                            icon: <Eye size={14} />,
+                            href: `/suppliers/${s.id}`,
+                          },
+                          {
+                            label: 'Edit',
+                            icon: <Edit size={14} />,
+                            onClick: () => toast.success('Edit supplier'),
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={14} />,
+                            danger: true,
+                            onClick: () => setDeleteId(s.id),
+                          },
+                        ]}
+                      />
+                    </DropdownTrigger>
                   </td>
                 </tr>
               ))}
@@ -175,7 +190,7 @@ export default function SuppliersPage() {
         </div>
         <Pagination
           page={page}
-          totalPages={Math.ceil(filtered.length / 10)}
+          totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
           total={filtered.length}
           limit={10}
           onPageChange={setPage}
@@ -185,7 +200,10 @@ export default function SuppliersPage() {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => setDeleteId(null)}
+        onConfirm={() => {
+          setDeleteId(null);
+          toast.success('Supplier deleted');
+        }}
         title="Delete Supplier"
         message="Delete this supplier permanently?"
       />

@@ -4,6 +4,8 @@ import { Plus, Save } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
 
 const MODULES = [
@@ -28,20 +30,21 @@ const MODULES = [
 ];
 
 const ACTIONS = ['View', 'Create', 'Edit', 'Delete'];
-
 const ROLES = ['Manager', 'Cashier', 'Inventory', 'Accountant'];
+
+const defaultPermissions = () => {
+  const init: Record<string, Record<string, boolean>> = {};
+  MODULES.forEach((m) => {
+    init[m] = { View: true, Create: false, Edit: false, Delete: false };
+  });
+  return init;
+};
 
 export default function RolesPage() {
   const [activeRole, setActiveRole] = useState('Manager');
-  const [permissions, setPermissions] = useState<
-    Record<string, Record<string, boolean>>
-  >(() => {
-    const init: Record<string, Record<string, boolean>> = {};
-    MODULES.forEach((m) => {
-      init[m] = { View: true, Create: false, Edit: false, Delete: false };
-    });
-    return init;
-  });
+  const [permissions, setPermissions] =
+    useState<Record<string, Record<string, boolean>>>(defaultPermissions);
+  const [addOpen, setAddOpen] = useState(false);
 
   const toggle = (module: string, action: string) => {
     setPermissions((prev) => ({
@@ -69,7 +72,11 @@ export default function RolesPage() {
         title="Roles & Permissions"
         subtitle="Control what each role can access"
         breadcrumbs={[{ label: 'Management' }, { label: 'Roles' }]}
-        actions={<Button icon={<Plus size={16} />}>New Role</Button>}
+        actions={
+          <Button icon={<Plus size={16} />} onClick={() => setAddOpen(true)}>
+            New Role
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
@@ -79,10 +86,10 @@ export default function RolesPage() {
             <button
               key={role}
               onClick={() => setActiveRole(role)}
-              className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-colors border ${
+              className={`cursor-pointer w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all select-none border ${
                 activeRole === role
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)]'
               }`}
             >
               {role}
@@ -99,7 +106,7 @@ export default function RolesPage() {
             <Button
               size="sm"
               icon={<Save size={14} />}
-              onClick={() => toast.success('Permissions saved')}
+              onClick={() => toast.success('Permissions saved successfully')}
             >
               Save Changes
             </Button>
@@ -107,22 +114,22 @@ export default function RolesPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 dark:bg-slate-800/60">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider">
+                <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
                     Module
                   </th>
                   {ACTIONS.map((action) => (
                     <th
                       key={action}
-                      className="px-4 py-3 text-center text-xs font-medium text-[var(--muted)] uppercase tracking-wider"
+                      className="px-4 py-3 text-center text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
                     >
-                      <div className="flex flex-col items-center gap-1">
-                        {action}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span>{action}</span>
                         <input
                           type="checkbox"
                           checked={isAllChecked(action)}
                           onChange={(e) => toggleAll(action, e.target.checked)}
-                          className="accent-[var(--primary)] w-3.5 h-3.5"
+                          className="cursor-pointer accent-[var(--primary)] w-4 h-4"
                           title={`Toggle all ${action}`}
                         />
                       </div>
@@ -134,7 +141,7 @@ export default function RolesPage() {
                 {MODULES.map((module) => (
                   <tr
                     key={module}
-                    className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
+                    className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="px-4 py-3 font-medium text-[var(--foreground)]">
                       {module}
@@ -145,7 +152,7 @@ export default function RolesPage() {
                           type="checkbox"
                           checked={permissions[module]?.[action] ?? false}
                           onChange={() => toggle(module, action)}
-                          className="accent-[var(--primary)] w-4 h-4 cursor-pointer"
+                          className="cursor-pointer accent-[var(--primary)] w-4 h-4"
                         />
                       </td>
                     ))}
@@ -156,6 +163,35 @@ export default function RolesPage() {
           </div>
         </Card>
       </div>
+
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Create New Role"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setAddOpen(false);
+                toast.success('Role created');
+              }}
+            >
+              Create Role
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Role Name" placeholder="e.g. Sales Manager" />
+          <Input
+            label="Description"
+            placeholder="Brief description of this role"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

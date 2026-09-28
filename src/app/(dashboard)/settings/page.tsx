@@ -44,18 +44,20 @@ export default function SettingsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+        {/* Tab nav */}
         <div className="space-y-1">
           {TABS.map((tab) => (
             <button
               key={tab.label}
               onClick={() => setActiveTab(tab.label)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+              className={`cursor-pointer w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all select-none border ${
                 activeTab === tab.label
-                  ? 'bg-[var(--primary)] text-white'
-                  : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)]'
               }`}
             >
-              {tab.icon} {tab.label}
+              <span className="shrink-0">{tab.icon}</span>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -73,22 +75,8 @@ export default function SettingsPage() {
                 <Input label="Email" defaultValue="info@businesserp.com" />
                 <Input label="Address" defaultValue="Dhaka, Bangladesh" />
                 <Input label="Website" defaultValue="https://businesserp.com" />
-                <Input
-                  label="Tax ID / VAT Number"
-                  defaultValue="VAT-12345678"
-                />
+                <Input label="Tax / VAT Number" defaultValue="VAT-12345678" />
                 <Input label="Currency" defaultValue="BDT (৳)" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[var(--foreground)] block mb-1.5">
-                  Company Logo
-                </label>
-                <div className="border-2 border-dashed border-[var(--border)] rounded-xl p-8 text-center w-48">
-                  <div className="w-12 h-12 rounded-xl bg-[var(--primary)] flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-bold text-lg">B</span>
-                  </div>
-                  <p className="text-xs text-[var(--muted)]">Click to change</p>
-                </div>
               </div>
             </div>
           )}
@@ -110,7 +98,7 @@ export default function SettingsPage() {
                 />
                 <Input label="Invoice Prefix" defaultValue="INV" />
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 {[
                   { label: 'Enable multi-branch mode', checked: true },
                   { label: 'Auto-generate invoice numbers', checked: true },
@@ -122,12 +110,12 @@ export default function SettingsPage() {
                 ].map((item) => (
                   <label
                     key={item.label}
-                    className="flex items-center gap-3 cursor-pointer"
+                    className="cursor-pointer flex items-center gap-3"
                   >
                     <input
                       type="checkbox"
                       defaultChecked={item.checked}
-                      className="accent-[var(--primary)] w-4 h-4"
+                      className="cursor-pointer accent-[var(--primary)] w-4 h-4"
                     />
                     <span className="text-sm text-[var(--foreground)]">
                       {item.label}
@@ -146,7 +134,7 @@ export default function SettingsPage() {
               {[
                 {
                   label: 'Low stock alert',
-                  desc: 'Notify when product quantity falls below alert threshold',
+                  desc: 'Notify when product falls below alert threshold',
                 },
                 {
                   label: 'New sale created',
@@ -169,9 +157,9 @@ export default function SettingsPage() {
                   desc: 'Notify admins when expenses need approval',
                 },
               ].map((item) => (
-                <div
+                <label
                   key={item.label}
-                  className="flex items-start justify-between p-4 rounded-xl border border-[var(--border)] bg-[var(--background)]"
+                  className="cursor-pointer flex items-start justify-between p-4 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-[var(--primary)] transition-colors gap-4"
                 >
                   <div>
                     <p className="text-sm font-medium text-[var(--foreground)]">
@@ -184,9 +172,9 @@ export default function SettingsPage() {
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="accent-[var(--primary)] w-4 h-4 mt-0.5 cursor-pointer shrink-0"
+                    className="cursor-pointer accent-[var(--primary)] w-4 h-4 mt-0.5 shrink-0"
                   />
-                </div>
+                </label>
               ))}
             </div>
           )}
@@ -208,21 +196,24 @@ export default function SettingsPage() {
                   defaultValue="5"
                 />
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 {[
-                  { label: 'Require strong passwords', checked: true },
+                  {
+                    label: 'Require strong passwords (min 8 chars)',
+                    checked: true,
+                  },
                   { label: 'Two-factor authentication', checked: false },
                   { label: 'Log all user activities', checked: true },
                   { label: 'Force logout on inactivity', checked: true },
                 ].map((item) => (
                   <label
                     key={item.label}
-                    className="flex items-center gap-3 cursor-pointer"
+                    className="cursor-pointer flex items-center gap-3"
                   >
                     <input
                       type="checkbox"
                       defaultChecked={item.checked}
-                      className="accent-[var(--primary)] w-4 h-4"
+                      className="cursor-pointer accent-[var(--primary)] w-4 h-4"
                     />
                     <span className="text-sm text-[var(--foreground)]">
                       {item.label}
@@ -234,7 +225,7 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'Appearance' && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               <h2 className="font-semibold text-[var(--foreground)]">
                 Appearance
               </h2>
@@ -243,16 +234,20 @@ export default function SettingsPage() {
                   Theme Mode
                 </p>
                 <div className="flex gap-3">
-                  {['Light', 'Dark'].map((mode) => (
+                  {[
+                    { mode: 'Light', emoji: '☀️' },
+                    { mode: 'Dark', emoji: '🌙' },
+                  ].map(({ mode, emoji }) => (
                     <button
                       key={mode}
-                      className={`flex-1 py-4 rounded-xl border-2 text-sm font-medium transition-colors ${
+                      className={`cursor-pointer flex-1 py-4 rounded-xl border-2 text-sm font-medium transition-all select-none ${
                         mode === 'Light'
                           ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]'
-                          : 'border-[var(--border)] text-[var(--muted)] hover:border-[var(--primary)]'
+                          : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-gray-50 dark:hover:bg-slate-800'
                       }`}
+                      onClick={() => toast.success(`${mode} mode selected`)}
                     >
-                      {mode === 'Light' ? '☀️' : '🌙'} {mode} Mode
+                      {emoji} {mode} Mode
                     </button>
                   ))}
                 </div>
@@ -261,19 +256,25 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-[var(--foreground)] mb-3">
                   Primary Color
                 </p>
-                <div className="flex gap-2">
-                  {['#16a34a', '#2563eb', '#9333ea', '#dc2626', '#ea580c'].map(
-                    (color) => (
-                      <button
-                        key={color}
-                        className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${color === '#16a34a' ? 'border-gray-400 scale-110' : 'border-transparent'}`}
-                        style={{ background: color }}
-                      />
-                    )
-                  )}
+                <div className="flex gap-3">
+                  {[
+                    { color: '#16a34a', label: 'Green' },
+                    { color: '#2563eb', label: 'Blue' },
+                    { color: '#9333ea', label: 'Purple' },
+                    { color: '#dc2626', label: 'Red' },
+                    { color: '#ea580c', label: 'Orange' },
+                  ].map(({ color, label }) => (
+                    <button
+                      key={color}
+                      title={label}
+                      className={`cursor-pointer w-9 h-9 rounded-full border-2 transition-all hover:scale-110 ${color === '#16a34a' ? 'border-gray-500 scale-110 ring-2 ring-offset-2 ring-gray-400' : 'border-transparent'}`}
+                      style={{ background: color }}
+                      onClick={() => toast.success(`${label} theme selected`)}
+                    />
+                  ))}
                 </div>
                 <p className="text-xs text-[var(--muted)] mt-2">
-                  Green is the default theme color
+                  Green is the current theme color
                 </p>
               </div>
             </div>

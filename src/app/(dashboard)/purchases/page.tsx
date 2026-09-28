@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { Plus, Search, Eye, MoreVertical } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Pagination } from '@/components/ui/Pagination';
+import { DropdownMenu, DropdownTrigger } from '@/components/ui/DropdownMenu';
 import { formatCurrency, formatDateTime } from '@/lib/utils/format';
+import { toast } from '@/components/ui/Toast';
 
 const mockPurchases = Array.from({ length: 20 }, (_, i) => ({
   id: String(i + 1),
@@ -33,14 +34,17 @@ const statusMap: Record<string, 'success' | 'warning' | 'danger'> = {
 
 export default function PurchasesPage() {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const filtered = mockPurchases.filter(
-    (p) =>
+  const filtered = mockPurchases.filter((p) => {
+    const matchSearch =
       p.reference.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplierName.toLowerCase().includes(search.toLowerCase())
-  );
+      p.supplierName.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = !statusFilter || p.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   return (
     <div>
@@ -48,7 +52,14 @@ export default function PurchasesPage() {
         title="Purchases"
         subtitle="Manage purchase orders"
         breadcrumbs={[{ label: 'Business' }, { label: 'Purchases' }]}
-        actions={<Button icon={<Plus size={16} />}>New Purchase</Button>}
+        actions={
+          <Button
+            icon={<Plus size={16} />}
+            onClick={() => toast.success('New purchase form coming soon')}
+          >
+            New Purchase
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
@@ -71,14 +82,29 @@ export default function PurchasesPage() {
 
       <Card padding={false}>
         <div className="p-4 flex flex-wrap gap-3 border-b border-[var(--border)]">
-          <Input
-            placeholder="Search by reference or supplier..."
-            leftIcon={<Search size={14} />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
-          />
-          <select className="px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+            />
+            <input
+              placeholder="Search by reference or supplier..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="cursor-text pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-64 transition-colors"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+          >
             <option value="">All Status</option>
             <option value="paid">Paid</option>
             <option value="partial">Partial</option>
@@ -89,7 +115,7 @@ export default function PurchasesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 dark:bg-slate-800/60">
+              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
                 {[
                   'Reference',
                   'Supplier',
@@ -102,7 +128,7 @@ export default function PurchasesPage() {
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-medium text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
+                    className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -110,60 +136,63 @@ export default function PurchasesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {filtered.slice((page - 1) * 10, page * 10).map((purchase) => (
+              {filtered.slice((page - 1) * 10, page * 10).map((p) => (
                 <tr
-                  key={purchase.id}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors"
+                  key={p.id}
+                  className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-[var(--primary)]">
-                    {purchase.reference}
+                  <td className="px-4 py-3 font-mono text-xs font-semibold text-[var(--primary)]">
+                    {p.reference}
                   </td>
                   <td className="px-4 py-3 font-medium text-[var(--foreground)]">
-                    {purchase.supplierName}
+                    {p.supplierName}
                   </td>
                   <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
-                    {formatCurrency(purchase.total)}
+                    {formatCurrency(p.total)}
                   </td>
-                  <td className="px-4 py-3 text-green-600">
-                    {formatCurrency(purchase.paid)}
+                  <td className="px-4 py-3 text-green-600 font-medium">
+                    {formatCurrency(p.paid)}
                   </td>
                   <td className="px-4 py-3">
                     <span
                       className={
-                        purchase.due > 0
+                        p.due > 0
                           ? 'text-red-500 font-medium'
                           : 'text-[var(--muted)]'
                       }
                     >
-                      {formatCurrency(purchase.due)}
+                      {formatCurrency(p.due)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={statusMap[purchase.status]}>
-                      {purchase.status}
-                    </Badge>
+                    <Badge variant={statusMap[p.status]}>{p.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)] text-xs whitespace-nowrap">
-                    {formatDateTime(purchase.createdAt)}
+                    {formatDateTime(p.createdAt)}
                   </td>
-                  <td className="px-4 py-3 relative">
-                    <button
-                      onClick={() =>
-                        setOpenMenuId(
-                          openMenuId === purchase.id ? null : purchase.id
-                        )
-                      }
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)]"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {openMenuId === purchase.id && (
-                      <div className="absolute right-8 top-8 z-10 w-32 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg py-1">
-                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800">
-                          <Eye size={14} className="text-[var(--muted)]" /> View
-                        </button>
-                      </div>
-                    )}
+                  <td className="px-4 py-3">
+                    <DropdownTrigger>
+                      <button
+                        onClick={() =>
+                          setOpenMenuId(openMenuId === p.id ? null : p.id)
+                        }
+                        className="cursor-pointer p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      <DropdownMenu
+                        open={openMenuId === p.id}
+                        onClose={() => setOpenMenuId(null)}
+                        items={[
+                          {
+                            label: 'View',
+                            icon: <Eye size={14} />,
+                            onClick: () =>
+                              toast.success(`Opening ${p.reference}`),
+                          },
+                        ]}
+                      />
+                    </DropdownTrigger>
                   </td>
                 </tr>
               ))}
@@ -172,7 +201,7 @@ export default function PurchasesPage() {
         </div>
         <Pagination
           page={page}
-          totalPages={Math.ceil(filtered.length / 10)}
+          totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
           total={filtered.length}
           limit={10}
           onPageChange={setPage}

@@ -36,8 +36,8 @@ import {
   Users2,
   Shield,
   ScrollText,
-  Wrench,
-  X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -138,14 +138,15 @@ const menuItems: MenuItem[] = [
   { label: 'Settings', icon: <Settings size={18} />, href: '/settings' },
 ];
 
+const AUTO_OPEN = new Set(['Business', 'Inventory', 'People', 'Finance']);
+
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const pathname = usePathname();
-  const [openMenus, setOpenMenus] = useState<Set<string>>(
-    new Set(['Business', 'Inventory'])
-  );
+  const [openMenus, setOpenMenus] = useState<Set<string>>(AUTO_OPEN);
 
   const toggleMenu = (label: string) => {
+    if (sidebarCollapsed) return;
     setOpenMenus((prev) => {
       const next = new Set(prev);
       next.has(label) ? next.delete(label) : next.add(label);
@@ -158,47 +159,54 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile backdrop */}
       {!sidebarCollapsed && (
         <div
-          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+          className="lg:hidden fixed inset-0 z-30 bg-black/50 cursor-pointer"
           onClick={toggleSidebar}
+          aria-hidden="true"
         />
       )}
 
       <aside
         className={cn(
-          'fixed left-0 top-0 h-full z-40 flex flex-col bg-[var(--card)] border-r border-[var(--border)] transition-all duration-300',
-          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]',
-          // On mobile: off-screen when collapsed
-          'max-lg:translate-x-0'
+          'fixed left-0 top-0 h-full z-40 flex flex-col',
+          'bg-[var(--card)] border-r border-[var(--border)]',
+          'transition-all duration-300 ease-in-out',
+          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center h-16 px-4 border-b border-[var(--border)] shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
-            {!sidebarCollapsed && (
-              <span className="font-bold text-[var(--foreground)] truncate">
-                Business ERP
-              </span>
-            )}
+        {/* Logo + toggle */}
+        <div className="flex items-center h-16 px-4 border-b border-[var(--border)] shrink-0 gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0">
+            <span className="text-white font-bold text-sm select-none">B</span>
           </div>
           {!sidebarCollapsed && (
-            <button
-              onClick={toggleSidebar}
-              className="ml-auto p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)] transition-colors"
-              aria-label="Collapse sidebar"
-            >
-              <X size={16} />
-            </button>
+            <span className="font-bold text-[var(--foreground)] truncate flex-1 select-none">
+              Business ERP
+            </span>
           )}
+          <button
+            onClick={toggleSidebar}
+            className={cn(
+              'cursor-pointer p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors shrink-0',
+              sidebarCollapsed && 'mx-auto'
+            )}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={
+              sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            }
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={16} />
+            ) : (
+              <PanelLeftClose size={16} />
+            )}
+          </button>
         </div>
 
-        {/* Menu */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {menuItems.map((item) => {
             if (item.href) {
               const active = isActive(item.href);
@@ -208,15 +216,17 @@ export function Sidebar() {
                   href={item.href}
                   title={sidebarCollapsed ? item.label : undefined}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 transition-colors text-sm font-medium',
+                    'group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium select-none',
                     active
-                      ? 'bg-[var(--primary)] text-white'
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
                       : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]',
-                    sidebarCollapsed && 'justify-center'
+                    sidebarCollapsed && 'justify-center px-0'
                   )}
                 >
                   <span className="shrink-0">{item.icon}</span>
-                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  {!sidebarCollapsed && (
+                    <span className="truncate">{item.label}</span>
+                  )}
                 </Link>
               );
             }
@@ -227,49 +237,62 @@ export function Sidebar() {
             return (
               <div key={item.label}>
                 <button
-                  onClick={() => !sidebarCollapsed && toggleMenu(item.label)}
+                  onClick={() => toggleMenu(item.label)}
                   title={sidebarCollapsed ? item.label : undefined}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 transition-colors text-sm font-medium',
+                    'cursor-pointer w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium select-none',
                     hasActiveChild
-                      ? 'text-[var(--primary)]'
+                      ? 'text-[var(--primary)] bg-[var(--primary-light)] dark:bg-green-900/20'
                       : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]',
-                    sidebarCollapsed && 'justify-center'
+                    sidebarCollapsed && 'justify-center px-0'
                   )}
                 >
                   <span className="shrink-0">{item.icon}</span>
                   {!sidebarCollapsed && (
                     <>
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {isOpen ? (
+                      <span className="flex-1 text-left truncate">
+                        {item.label}
+                      </span>
+                      <span
+                        className="shrink-0 transition-transform duration-200"
+                        style={{
+                          transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        }}
+                      >
                         <ChevronDown size={14} />
-                      ) : (
-                        <ChevronRight size={14} />
-                      )}
+                      </span>
                     </>
                   )}
                 </button>
 
-                {!sidebarCollapsed && isOpen && item.children && (
-                  <div className="ml-3 pl-3 border-l border-[var(--border)] mb-1">
-                    {item.children.map((child) => {
-                      const childActive = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          className={cn(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors',
-                            childActive
-                              ? 'bg-[var(--primary-light)] text-[var(--primary-dark)] font-medium'
-                              : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]'
-                          )}
-                        >
-                          {child.icon}
-                          {child.label}
-                        </Link>
-                      );
-                    })}
+                {/* Submenu */}
+                {!sidebarCollapsed && (
+                  <div
+                    className={cn(
+                      'overflow-hidden transition-all duration-200',
+                      isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    )}
+                  >
+                    <div className="ml-4 pl-3 border-l-2 border-[var(--border)] mt-0.5 mb-1 space-y-0.5">
+                      {item.children?.map((child) => {
+                        const childActive = isActive(child.href);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={cn(
+                              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 select-none',
+                              childActive
+                                ? 'bg-[var(--primary-light)] text-[var(--primary)] font-semibold dark:bg-green-900/30'
+                                : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]'
+                            )}
+                          >
+                            {child.icon}
+                            <span className="truncate">{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

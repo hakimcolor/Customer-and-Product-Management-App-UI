@@ -17,27 +17,29 @@ export function Input({
   id,
   ...props
 }: InputProps) {
-  const inputId = id || label?.toLowerCase().replace(/\s/g, '-');
+  const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
         <label
           htmlFor={inputId}
-          className="text-sm font-medium text-[var(--foreground)]"
+          className="text-sm font-medium text-[var(--foreground)] cursor-default select-none"
         >
           {label}
         </label>
       )}
       <div className="relative">
         {leftIcon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
             {leftIcon}
           </span>
         )}
         <input
           id={inputId}
           className={cn(
-            'w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] transition-colors',
+            'w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm',
+            'text-[var(--foreground)] placeholder:text-[var(--muted)]',
+            'transition-colors cursor-text',
             'focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             leftIcon && 'pl-9',
@@ -48,12 +50,12 @@ export function Input({
           {...props}
         />
         {rightIcon && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] cursor-pointer">
             {rightIcon}
           </span>
         )}
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
     </div>
   );
 }
