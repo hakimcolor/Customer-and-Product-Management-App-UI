@@ -68,6 +68,27 @@ export default function LoginPage() {
             Sign in to your account
           </p>
 
+          {/* Demo credentials */}
+          <div className="mb-4 rounded-xl border border-[var(--primary)] bg-[var(--primary-light)] px-4 py-3">
+            <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-wider mb-1.5">
+              Admin Credentials
+            </p>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--muted)]">Email</span>
+                <span className="text-xs font-semibold text-[var(--foreground)] select-all">
+                  admin@example.com
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--muted)]">Password</span>
+                <span className="text-xs font-semibold text-[var(--foreground)] select-all">
+                  admin123
+                </span>
+              </div>
+            </div>
+          </div>
+
           <form
             onSubmit={handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
