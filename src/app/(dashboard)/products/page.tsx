@@ -155,7 +155,7 @@ export default function ProductsPage() {
   function openEdit(p: Product) {
     setEditProduct(p);
     setForm({
-      title: p.title,
+      title: p.title ?? p.name ?? "",
       sku: p.sku ?? '',
       sellingPrice: String(p.sellingPrice),
       purchasePrice: String(p.purchasePrice),
