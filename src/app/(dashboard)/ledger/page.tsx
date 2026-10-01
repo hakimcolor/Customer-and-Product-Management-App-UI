@@ -130,33 +130,33 @@ export default function LedgerPage() {
       <Card className="mb-5">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
               Account
             </label>
-            <select className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors">
+            <select className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors">
               <option>Main Cash</option>
               <option>Dutch Bangla Bank</option>
               <option>bKash Business</option>
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
               From
             </label>
             <input
               type="date"
               defaultValue="2026-09-01"
-              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
               To
             </label>
             <input
               type="date"
               defaultValue="2026-09-29"
-              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>
           <Button onClick={() => toast.success('Ledger generated')}>
@@ -182,11 +182,11 @@ export default function LedgerPage() {
           { label: 'Closing Balance', value: formatCurrency(closingBalance) },
         ].map((s) => (
           <Card key={s.label}>
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
+            <p className="text-xs text-muted uppercase tracking-wider">
               {s.label}
             </p>
             <p
-              className={`text-xl font-bold mt-1 ${s.color ?? 'text-[var(--foreground)]'}`}
+              className={`text-xl font-bold mt-1 ${s.color ?? 'text-foreground'}`}
             >
               {s.value}
             </p>
@@ -198,7 +198,7 @@ export default function LedgerPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
+              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-border">
                 {[
                   'Date',
                   'Description',
@@ -209,23 +209,23 @@ export default function LedgerPage() {
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
+                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">
+            <tbody className="divide-y divide-border">
               {ledgerData.map((row) => (
                 <tr
                   key={row.id}
                   className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
                 >
-                  <td className="px-4 py-3 text-[var(--muted)] text-xs whitespace-nowrap">
+                  <td className="px-4 py-3 text-muted text-xs whitespace-nowrap">
                     {formatDate(row.date)}
                   </td>
-                  <td className="px-4 py-3 text-[var(--foreground)]">
+                  <td className="px-4 py-3 text-foreground">
                     {row.description}
                   </td>
                   <td className="px-4 py-3">
@@ -237,7 +237,7 @@ export default function LedgerPage() {
                   <td className="px-4 py-3 text-red-500 font-medium">
                     {row.credit > 0 ? formatCurrency(row.credit) : '—'}
                   </td>
-                  <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
+                  <td className="px-4 py-3 font-semibold text-foreground">
                     {formatCurrency(row.balance)}
                   </td>
                 </tr>
