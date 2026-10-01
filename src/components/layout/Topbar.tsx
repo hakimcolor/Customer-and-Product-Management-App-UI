@@ -15,14 +15,14 @@ import { useTheme } from 'next-themes';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils/cn';
+import { branchesApi } from '@/lib/api/endpoints';
 
-const BRANCHES = [
-  { id: 'all', name: 'All Branches' },
-  { id: 'main', name: 'Main Branch' },
-  { id: 'dhaka', name: 'Dhaka Branch' },
-  { id: 'ctg', name: 'Chittagong Branch' },
-];
+interface Branch {
+  id: number;
+  name: string;
+}
 
 export function Topbar() {
   const { toggleSidebar, activeBranch, activeBranchName, setBranch } =
@@ -42,6 +42,20 @@ export function Topbar() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const { data: branchesData } = useQuery<Branch[]>({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const res = await branchesApi.getAll();
+      const d = res.data?.data ?? res.data;
+      return d?.data ?? d;
+    },
+  });
+
+  const branches: { id: string; name: string }[] = [
+    { id: 'all', name: 'All Branches' },
+    ...(branchesData ?? []).map((b) => ({ id: String(b.id), name: b.name })),
+  ];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -117,7 +131,7 @@ export function Topbar() {
               <p className="px-3 py-1.5 text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
                 Select Branch
               </p>
-              {BRANCHES.map((b) => (
+              {branches.map((b) => (
                 <button
                   key={b.id}
                   onClick={() => {
@@ -143,6 +157,7 @@ export function Topbar() {
 
         {/* Notifications */}
         <button
+          onClick={() => router.push('/notifications')}
           className="cursor-pointer relative p-2 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
           aria-label="Notifications"
         >
