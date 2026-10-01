@@ -163,3 +163,45 @@ export interface FilterOption {
   label: string;
   value: string;
 }
+
+// Ledger
+export interface LedgerEntry {
+  id: number;
+  type: 'DEBIT' | 'CREDIT';
+  amount: number;
+  balance: number;
+  description: string | null;
+  refType: string | null;
+  refId: number | null;
+  date: string;
+  createdAt: string;
+  runningBalance: number;
+  customer?: { id: number; name: string } | null;
+  supplier?: { id: number; name: string } | null;
+}
+
+// Account
+export interface Account {
+  id: number;
+  name: string;
+  accountType: 'CASH' | 'BANK' | 'MOBILE_BANKING';
+  accountNumber?: string | null;
+  bankName?: string | null;
+  balance: number;
+  openingBalance: number;
+  status: boolean;
+}
+
+// AccountTransaction
+export interface AccountTransaction {
+  id: number;
+  accountId: number;
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER';
+  amount: number;
+  balance: number;
+  description: string | null;
+  refType: string | null;
+  refId: number | null;
+  date: string;
+  account?: Account;
+}
