@@ -122,11 +122,17 @@ export const inventoryApi = {
 
 // Accounts
 export const accountsApi = {
-  getAll: () => apiClient.get('/accounts'),
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/accounts', { params }),
   getOne: (id: string) => apiClient.get(`/accounts/${id}`),
   create: (data: unknown) => apiClient.post('/accounts', data),
+  update: (id: string, data: unknown) => apiClient.put(`/accounts/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/accounts/${id}`),
   getTransactions: (id: string, params?: Record<string, unknown>) =>
     apiClient.get(`/accounts/${id}/transactions`, { params }),
+  deposit: (data: unknown) => apiClient.post('/accounts/deposit', data),
+  withdraw: (data: unknown) => apiClient.post('/accounts/withdraw', data),
+  transfer: (data: unknown) => apiClient.post('/accounts/transfer', data),
 };
 
 // Reports
@@ -141,6 +147,8 @@ export const reportsApi = {
     apiClient.get('/reports/profit', { params }),
   ledger: (params: Record<string, unknown>) =>
     apiClient.get('/reports/ledger', { params }),
+  cashFlow: (params: Record<string, unknown>) =>
+    apiClient.get('/reports/cash-flow', { params }),
 };
 
 // Users
