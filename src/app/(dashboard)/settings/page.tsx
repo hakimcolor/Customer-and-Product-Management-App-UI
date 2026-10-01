@@ -1,11 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Save, Building2, Globe, Bell, Shield, Palette } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
+import { settingsApi } from '@/lib/api/endpoints';
 
 const TABS = [
   { label: 'Company', icon: <Building2 size={16} /> },
@@ -15,16 +17,72 @@ const TABS = [
   { label: 'Appearance', icon: <Palette size={16} /> },
 ];
 
+const NOTIFICATION_KEYS = [
+  {
+    key: 'notify_low_stock',
+    label: 'Low stock alert',
+    desc: 'Notify when product falls below alert threshold',
+  },
+  {
+    key: 'notify_new_sale',
+    label: 'New sale created',
+    desc: 'Notify when a new sale is made',
+  },
+  {
+    key: 'notify_payment',
+    label: 'Payment received',
+    desc: 'Notify when customer makes a payment',
+  },
+  {
+    key: 'notify_overdue',
+    label: 'Overdue payments',
+    desc: 'Daily summary of overdue invoices',
+  },
+];
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Company');
-  const [saving, setSaving] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
 
-  const handleSave = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    toast.success('Settings saved successfully');
-  };
+  const { data: rawSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const res = await settingsApi.get();
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  useEffect(() => {
+    if (!rawSettings) return;
+    const map: Record<string, string> = {};
+    if (Array.isArray(rawSettings)) {
+      rawSettings.forEach((s: { key: string; value: string }) => {
+        map[s.key] = s.value;
+      });
+    } else if (typeof rawSettings === 'object') {
+      Object.entries(rawSettings).forEach(([k, v]) => {
+        map[k] = String(v);
+      });
+    }
+    setFields(map);
+  }, [rawSettings]);
+
+  const saveMutation = useMutation({
+    mutationFn: (data: Record<string, string>) => {
+      const bulk = Object.entries(data).map(([key, value]) => ({ key, value }));
+      return settingsApi.update({ settings: bulk });
+    },
+    onSuccess: () => toast.success('Settings saved'),
+    onError: () => toast.error('Failed to save settings'),
+  });
+
+  function set(key: string, value: string) {
+    setFields((f) => ({ ...f, [key]: value }));
+  }
+
+  function handleSave() {
+    saveMutation.mutate(fields);
+  }
 
   return (
     <div>
@@ -35,7 +93,7 @@ export default function SettingsPage() {
         actions={
           <Button
             icon={<Save size={16} />}
-            loading={saving}
+            loading={saveMutation.isPending}
             onClick={handleSave}
           >
             Save Changes
@@ -44,7 +102,6 @@ export default function SettingsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-        {/* Tab nav */}
         <div className="space-y-1">
           {TABS.map((tab) => (
             <button
@@ -52,8 +109,8 @@ export default function SettingsPage() {
               onClick={() => setActiveTab(tab.label)}
               className={`cursor-pointer w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all select-none border ${
                 activeTab === tab.label
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
-                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)]'
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'bg-card border-border text-foreground hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-primary'
               }`}
             >
               <span className="shrink-0">{tab.icon}</span>
@@ -65,59 +122,105 @@ export default function SettingsPage() {
         <Card className="lg:col-span-3">
           {activeTab === 'Company' && (
             <div className="space-y-5">
-              <h2 className="font-semibold text-[var(--foreground)]">
+              <h2 className="font-semibold text-foreground">
                 Company Information
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Company Name" defaultValue="Business ERP Ltd." />
-                <Input label="Business Type" defaultValue="Trading" />
-                <Input label="Phone" defaultValue="+880 1XXX-XXXXXX" />
-                <Input label="Email" defaultValue="info@businesserp.com" />
-                <Input label="Address" defaultValue="Dhaka, Bangladesh" />
-                <Input label="Website" defaultValue="https://businesserp.com" />
-                <Input label="Tax / VAT Number" defaultValue="VAT-12345678" />
-                <Input label="Currency" defaultValue="BDT (৳)" />
+                <Input
+                  label="Company Name"
+                  value={fields.company_name ?? ''}
+                  onChange={(e) => set('company_name', e.target.value)}
+                />
+                <Input
+                  label="Business Type"
+                  value={fields.business_type ?? ''}
+                  onChange={(e) => set('business_type', e.target.value)}
+                />
+                <Input
+                  label="Phone"
+                  value={fields.company_phone ?? ''}
+                  onChange={(e) => set('company_phone', e.target.value)}
+                />
+                <Input
+                  label="Email"
+                  value={fields.company_email ?? ''}
+                  onChange={(e) => set('company_email', e.target.value)}
+                />
+                <Input
+                  label="Address"
+                  value={fields.company_address ?? ''}
+                  onChange={(e) => set('company_address', e.target.value)}
+                />
+                <Input
+                  label="Currency"
+                  value={fields.currency ?? 'BDT'}
+                  onChange={(e) => set('currency', e.target.value)}
+                />
+                <Input
+                  label="Tax / VAT Number"
+                  value={fields.vat_number ?? ''}
+                  onChange={(e) => set('vat_number', e.target.value)}
+                />
+                <Input
+                  label="Invoice Prefix"
+                  value={fields.invoice_prefix ?? 'INV'}
+                  onChange={(e) => set('invoice_prefix', e.target.value)}
+                />
               </div>
             </div>
           )}
 
           {activeTab === 'General' && (
             <div className="space-y-5">
-              <h2 className="font-semibold text-[var(--foreground)]">
+              <h2 className="font-semibold text-foreground">
                 General Settings
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Date Format" defaultValue="DD/MM/YYYY" />
-                <Input label="Time Zone" defaultValue="Asia/Dhaka (GMT+6)" />
-                <Input label="Language" defaultValue="English" />
-                <Input label="Fiscal Year Start" defaultValue="January" />
                 <Input
-                  label="Low Stock Alert Threshold"
-                  type="number"
-                  defaultValue="10"
+                  label="Date Format"
+                  value={fields.date_format ?? 'DD/MM/YYYY'}
+                  onChange={(e) => set('date_format', e.target.value)}
                 />
-                <Input label="Invoice Prefix" defaultValue="INV" />
+                <Input
+                  label="Time Zone"
+                  value={fields.timezone ?? 'Asia/Dhaka'}
+                  onChange={(e) => set('timezone', e.target.value)}
+                />
+                <Input
+                  label="Language"
+                  value={fields.language ?? 'English'}
+                  onChange={(e) => set('language', e.target.value)}
+                />
+                <Input
+                  label="Low Stock Threshold"
+                  type="number"
+                  value={fields.low_stock_threshold ?? '10'}
+                  onChange={(e) => set('low_stock_threshold', e.target.value)}
+                />
               </div>
               <div className="space-y-3 pt-2">
                 {[
-                  { label: 'Enable multi-branch mode', checked: true },
-                  { label: 'Auto-generate invoice numbers', checked: true },
-                  { label: 'Send email on new sale', checked: false },
+                  { key: 'multi_branch', label: 'Enable multi-branch mode' },
                   {
+                    key: 'auto_invoice',
+                    label: 'Auto-generate invoice numbers',
+                  },
+                  {
+                    key: 'require_approval',
                     label: 'Require approval for large purchases',
-                    checked: true,
                   },
                 ].map((item) => (
                   <label
-                    key={item.label}
+                    key={item.key}
                     className="cursor-pointer flex items-center gap-3"
                   >
                     <input
                       type="checkbox"
-                      defaultChecked={item.checked}
-                      className="cursor-pointer accent-[var(--primary)] w-4 h-4"
+                      checked={fields[item.key] === 'true'}
+                      onChange={(e) => set(item.key, String(e.target.checked))}
+                      className="cursor-pointer accent-primary w-4 h-4"
                     />
-                    <span className="text-sm text-[var(--foreground)]">
+                    <span className="text-sm text-foreground">
                       {item.label}
                     </span>
                   </label>
@@ -128,51 +231,25 @@ export default function SettingsPage() {
 
           {activeTab === 'Notifications' && (
             <div className="space-y-4">
-              <h2 className="font-semibold text-[var(--foreground)]">
+              <h2 className="font-semibold text-foreground">
                 Notification Preferences
               </h2>
-              {[
-                {
-                  label: 'Low stock alert',
-                  desc: 'Notify when product falls below alert threshold',
-                },
-                {
-                  label: 'New sale created',
-                  desc: 'Notify when a new sale is made',
-                },
-                {
-                  label: 'Payment received',
-                  desc: 'Notify when customer makes a payment',
-                },
-                {
-                  label: 'Overdue payments',
-                  desc: 'Daily summary of overdue invoices',
-                },
-                {
-                  label: 'New purchase order',
-                  desc: 'Notify when a new purchase is created',
-                },
-                {
-                  label: 'Expense approval needed',
-                  desc: 'Notify admins when expenses need approval',
-                },
-              ].map((item) => (
+              {NOTIFICATION_KEYS.map((item) => (
                 <label
-                  key={item.label}
-                  className="cursor-pointer flex items-start justify-between p-4 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-[var(--primary)] transition-colors gap-4"
+                  key={item.key}
+                  className="cursor-pointer flex items-start justify-between p-4 rounded-xl border border-border bg-background hover:border-primary transition-colors gap-4"
                 >
                   <div>
-                    <p className="text-sm font-medium text-[var(--foreground)]">
+                    <p className="text-sm font-medium text-foreground">
                       {item.label}
                     </p>
-                    <p className="text-xs text-[var(--muted)] mt-0.5">
-                      {item.desc}
-                    </p>
+                    <p className="text-xs text-muted mt-0.5">{item.desc}</p>
                   </div>
                   <input
                     type="checkbox"
-                    defaultChecked
-                    className="cursor-pointer accent-[var(--primary)] w-4 h-4 mt-0.5 shrink-0"
+                    checked={fields[item.key] !== 'false'}
+                    onChange={(e) => set(item.key, String(e.target.checked))}
+                    className="cursor-pointer accent-primary w-4 h-4 mt-0.5 shrink-0"
                   />
                 </label>
               ))}
@@ -181,41 +258,43 @@ export default function SettingsPage() {
 
           {activeTab === 'Security' && (
             <div className="space-y-5">
-              <h2 className="font-semibold text-[var(--foreground)]">
+              <h2 className="font-semibold text-foreground">
                 Security Settings
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Session Timeout (minutes)"
                   type="number"
-                  defaultValue="60"
+                  value={fields.session_timeout ?? '60'}
+                  onChange={(e) => set('session_timeout', e.target.value)}
                 />
                 <Input
                   label="Max Login Attempts"
                   type="number"
-                  defaultValue="5"
+                  value={fields.max_login_attempts ?? '5'}
+                  onChange={(e) => set('max_login_attempts', e.target.value)}
                 />
               </div>
               <div className="space-y-3 pt-2">
                 {[
                   {
+                    key: 'strong_password',
                     label: 'Require strong passwords (min 8 chars)',
-                    checked: true,
                   },
-                  { label: 'Two-factor authentication', checked: false },
-                  { label: 'Log all user activities', checked: true },
-                  { label: 'Force logout on inactivity', checked: true },
+                  { key: 'log_activities', label: 'Log all user activities' },
+                  { key: 'force_logout', label: 'Force logout on inactivity' },
                 ].map((item) => (
                   <label
-                    key={item.label}
+                    key={item.key}
                     className="cursor-pointer flex items-center gap-3"
                   >
                     <input
                       type="checkbox"
-                      defaultChecked={item.checked}
-                      className="cursor-pointer accent-[var(--primary)] w-4 h-4"
+                      checked={fields[item.key] !== 'false'}
+                      onChange={(e) => set(item.key, String(e.target.checked))}
+                      className="cursor-pointer accent-primary w-4 h-4"
                     />
-                    <span className="text-sm text-[var(--foreground)]">
+                    <span className="text-sm text-foreground">
                       {item.label}
                     </span>
                   </label>
@@ -226,34 +305,9 @@ export default function SettingsPage() {
 
           {activeTab === 'Appearance' && (
             <div className="space-y-6">
-              <h2 className="font-semibold text-[var(--foreground)]">
-                Appearance
-              </h2>
+              <h2 className="font-semibold text-foreground">Appearance</h2>
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-3">
-                  Theme Mode
-                </p>
-                <div className="flex gap-3">
-                  {[
-                    { mode: 'Light', emoji: '☀️' },
-                    { mode: 'Dark', emoji: '🌙' },
-                  ].map(({ mode, emoji }) => (
-                    <button
-                      key={mode}
-                      className={`cursor-pointer flex-1 py-4 rounded-xl border-2 text-sm font-medium transition-all select-none ${
-                        mode === 'Light'
-                          ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]'
-                          : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-gray-50 dark:hover:bg-slate-800'
-                      }`}
-                      onClick={() => toast.success(`${mode} mode selected`)}
-                    >
-                      {emoji} {mode} Mode
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--foreground)] mb-3">
+                <p className="text-sm font-medium text-foreground mb-3">
                   Primary Color
                 </p>
                 <div className="flex gap-3">
@@ -267,14 +321,14 @@ export default function SettingsPage() {
                     <button
                       key={color}
                       title={label}
-                      className={`cursor-pointer w-9 h-9 rounded-full border-2 transition-all hover:scale-110 ${color === '#16a34a' ? 'border-gray-500 scale-110 ring-2 ring-offset-2 ring-gray-400' : 'border-transparent'}`}
+                      className={`cursor-pointer w-9 h-9 rounded-full border-2 transition-all hover:scale-110 ${(fields.primary_color ?? '#16a34a') === color ? 'border-gray-500 scale-110 ring-2 ring-offset-2 ring-gray-400' : 'border-transparent'}`}
                       style={{ background: color }}
-                      onClick={() => toast.success(`${label} theme selected`)}
+                      onClick={() => set('primary_color', color)}
                     />
                   ))}
                 </div>
-                <p className="text-xs text-[var(--muted)] mt-2">
-                  Green is the current theme color
+                <p className="text-xs text-muted mt-2">
+                  Green is the recommended theme color
                 </p>
               </div>
             </div>
