@@ -1,9 +1,16 @@
 'use client';
 import { useState } from 'react';
-import { Plus, Search, Trash2, MoreVertical } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Plus,
+  Search,
+  Trash2,
+  MoreVertical,
+  DollarSign,
+  TrendingDown,
+} from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Pagination } from '@/components/ui/Pagination';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -12,45 +19,126 @@ import { Input } from '@/components/ui/Input';
 import { DropdownMenu, DropdownTrigger } from '@/components/ui/DropdownMenu';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
+import { expensesApi, accountsApi } from '@/lib/api/endpoints';
 
-const mockExpenses = Array.from({ length: 18 }, (_, i) => ({
-  id: String(i + 1),
-  category: [
-    'Rent',
-    'Salary',
-    'Utilities',
-    'Marketing',
-    'Transport',
-    'Supplies',
-  ][i % 6],
-  description: [
-    'Office Rent',
-    'Staff Salary',
-    'Electricity Bill',
-    'Social Media Ads',
-    'Delivery Cost',
-    'Stationery',
-  ][i % 6],
-  amount: [35000, 120000, 8500, 15000, 4500, 2200][i % 6],
-  account: ['Main Cash', 'Dutch Bangla Bank'][i % 2],
-  status: i % 4 === 0 ? 'pending' : 'approved',
-  date: new Date(Date.now() - i * 86400000 * 3).toISOString().split('T')[0],
-}));
+interface Expense {
+  id: number;
+  category: string;
+  description?: string | null;
+  amount: number;
+  account?: { name: string } | null;
+  date: string;
+  createdAt: string;
+}
+interface ExpensesResponse {
+  data: Expense[];
+  total: number;
+  totalPages: number;
+}
+interface Account {
+  id: number;
+  name: string;
+}
+
+const CATEGORIES = [
+  'Rent',
+  'Salary',
+  'Utilities',
+  'Marketing',
+  'Transport',
+  'Supplies',
+  'Other',
+];
+
+const emptyForm = {
+  category: 'Rent',
+  description: '',
+  amount: '',
+  accountId: '',
+  date: new Date().toISOString().split('T')[0],
+};
 
 export default function ExpensesPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
-  const filtered = mockExpenses.filter(
-    (e) =>
-      e.description.toLowerCase().includes(search.toLowerCase()) ||
-      e.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const { data, isLoading } = useQuery<ExpensesResponse>({
+    queryKey: ['expenses', page, search],
+    queryFn: async () => {
+      const params: Record<string, unknown> = { page, limit: 10 };
+      if (search) params.search = search;
+      const res = await expensesApi.getAll(params);
+      return res.data?.data ?? res.data;
+    },
+  });
 
-  const totalExpenses = mockExpenses.reduce((s, e) => s + e.amount, 0);
+  const { data: accounts } = useQuery<Account[]>({
+    queryKey: ['accounts-list'],
+    queryFn: async () => {
+      const res = await accountsApi.getAll();
+      const d = res.data?.data ?? res.data;
+      return d?.data ?? d;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (d: Record<string, unknown>) => expensesApi.create(d),
+    onSuccess: () => {
+      toast.success('Expense added');
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      closeModal();
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      toast.error(msg ?? 'Failed to add expense');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => expensesApi.delete(String(id)),
+    onSuccess: () => {
+      toast.success('Expense deleted');
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      setDeleteId(null);
+    },
+    onError: () => toast.error('Failed to delete'),
+  });
+
+  function closeModal() {
+    setAddOpen(false);
+    setForm(emptyForm);
+    setFormErrors({});
+  }
+
+  function validate() {
+    const e: Partial<typeof emptyForm> = {};
+    if (!form.amount || isNaN(Number(form.amount)))
+      e.amount = 'Valid amount required';
+    setFormErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function handleSubmit() {
+    if (!validate()) return;
+    createMutation.mutate({
+      category: form.category,
+      description: form.description || undefined,
+      amount: parseFloat(form.amount),
+      accountId: form.accountId ? parseInt(form.accountId) : undefined,
+      date: form.date,
+    });
+  }
+
+  const expenses = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const pageTotal = expenses.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div>
@@ -67,17 +155,36 @@ export default function ExpensesPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
         {[
-          { label: 'Total Expenses', value: formatCurrency(totalExpenses) },
-          { label: 'This Month', value: formatCurrency(185000) },
-          { label: 'Today', value: formatCurrency(8500) },
-          { label: 'Pending Approval', value: '5' },
+          {
+            label: 'Total Records',
+            value: String(total),
+            icon: <TrendingDown size={20} className="text-[var(--primary)]" />,
+          },
+          {
+            label: 'This Page Total',
+            value: formatCurrency(pageTotal),
+            icon: <DollarSign size={20} className="text-red-500" />,
+          },
+          {
+            label: 'Categories',
+            value: String(CATEGORIES.length - 1),
+            icon: <TrendingDown size={20} className="text-blue-500" />,
+          },
+          {
+            label: 'Current Page',
+            value: String(page),
+            icon: <DollarSign size={20} className="text-orange-500" />,
+          },
         ].map((s) => (
           <Card key={s.label}>
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
-              {s.label}
-            </p>
-            <p className="text-xl font-bold text-[var(--foreground)] mt-1">
-              {s.value}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-[var(--muted)] uppercase tracking-wider font-semibold">
+                {s.label}
+              </p>
+              {s.icon}
+            </div>
+            <p className="text-2xl font-bold text-[var(--foreground)]">
+              {isLoading ? '—' : s.value}
             </p>
           </Card>
         ))}
@@ -97,7 +204,7 @@ export default function ExpensesPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+              className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-border bg-card text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>
         </div>
@@ -105,92 +212,108 @@ export default function ExpensesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
+              <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-border">
                 {[
                   'Category',
                   'Description',
                   'Amount',
                   'Account',
                   'Date',
-                  'Status',
                   '',
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted)] uppercase tracking-wider whitespace-nowrap"
+                    className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider whitespace-nowrap"
                   >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {filtered.slice((page - 1) * 10, page * 10).map((e) => (
-                <tr
-                  key={e.id}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary-light)] text-[var(--primary)]">
-                      {e.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-[var(--foreground)]">
-                    {e.description}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
-                    {formatCurrency(e.amount)}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--foreground)]">
-                    {e.account}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted)] text-xs whitespace-nowrap">
-                    {formatDate(e.date)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant={e.status === 'approved' ? 'success' : 'warning'}
-                    >
-                      {e.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <DropdownTrigger>
-                      <button
-                        onClick={() =>
-                          setOpenMenuId(openMenuId === e.id ? null : e.id)
-                        }
-                        className="cursor-pointer p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      <DropdownMenu
-                        open={openMenuId === e.id}
-                        onClose={() => setOpenMenuId(null)}
-                        items={[
-                          {
-                            label: 'Approve',
-                            onClick: () => toast.success('Expense approved'),
-                          },
-                          {
-                            label: 'Delete',
-                            icon: <Trash2 size={14} />,
-                            danger: true,
-                            onClick: () => setDeleteId(e.id),
-                          },
-                        ]}
-                      />
-                    </DropdownTrigger>
+            <tbody className="divide-y divide-border">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-20" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : expenses.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-14 text-center text-muted">
+                    <TrendingDown
+                      size={40}
+                      className="mx-auto mb-3 opacity-30"
+                    />
+                    <p className="text-base font-semibold">No expenses found</p>
+                    <p className="text-sm mt-1">
+                      Add your first expense record
+                    </p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                expenses.map((e) => (
+                  <tr
+                    key={e.id}
+                    className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-light text-primary">
+                        {e.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      {e.description ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-foreground">
+                      {formatCurrency(e.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-foreground">
+                      {e.account?.name ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted text-xs whitespace-nowrap">
+                      {formatDate(e.date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <DropdownTrigger>
+                        <button
+                          onClick={() =>
+                            setOpenMenuId(openMenuId === e.id ? null : e.id)
+                          }
+                          className="cursor-pointer p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-muted hover:text-foreground transition-colors"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        <DropdownMenu
+                          open={openMenuId === e.id}
+                          onClose={() => setOpenMenuId(null)}
+                          items={[
+                            {
+                              label: 'Delete',
+                              icon: <Trash2 size={14} />,
+                              danger: true,
+                              onClick: () => {
+                                setOpenMenuId(null);
+                                setDeleteId(e.id);
+                              },
+                            },
+                          ]}
+                        />
+                      </DropdownTrigger>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <Pagination
           page={page}
-          totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
-          total={filtered.length}
+          totalPages={Math.max(1, data?.totalPages ?? 1)}
+          total={total}
           limit={10}
           onPageChange={setPage}
         />
@@ -199,69 +322,84 @@ export default function ExpensesPage() {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => {
-          setDeleteId(null);
-          toast.success('Expense deleted');
-        }}
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         title="Delete Expense"
         message="Delete this expense record permanently?"
       />
 
       <Modal
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={closeModal}
         title="Add Expense"
+        size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>
+            <Button variant="outline" onClick={closeModal}>
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                setAddOpen(false);
-                toast.success('Expense added');
-              }}
-            >
+            <Button onClick={handleSubmit} loading={createMutation.isPending}>
               Save
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-[var(--foreground)] block mb-1.5">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">
               Category
             </label>
-            <select className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-              {[
-                'Rent',
-                'Salary',
-                'Utilities',
-                'Marketing',
-                'Transport',
-                'Supplies',
-                'Other',
-              ].map((c) => (
+            <select
+              value={form.category}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, category: e.target.value }))
+              }
+              className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
           </div>
-          <Input label="Description" placeholder="Expense description" />
-          <Input label="Amount" type="number" placeholder="0" />
-          <div>
-            <label className="text-sm font-medium text-[var(--foreground)] block mb-1.5">
+          <Input
+            label="Description"
+            placeholder="Expense description"
+            value={form.description}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, description: e.target.value }))
+            }
+          />
+          <Input
+            label="Amount *"
+            type="number"
+            placeholder="0"
+            value={form.amount}
+            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+            error={formErrors.amount}
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">
               Account
             </label>
-            <select className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-              <option>Main Cash</option>
-              <option>Dutch Bangla Bank</option>
-              <option>bKash Business</option>
+            <select
+              value={form.accountId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, accountId: e.target.value }))
+              }
+              className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">Select account...</option>
+              {(accounts ?? []).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
             </select>
           </div>
           <Input
             label="Date"
             type="date"
-            defaultValue={new Date().toISOString().split('T')[0]}
+            value={form.date}
+            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
           />
         </div>
       </Modal>

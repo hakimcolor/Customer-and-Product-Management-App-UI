@@ -130,9 +130,13 @@ export const accountsApi = {
   delete: (id: string) => apiClient.delete(`/accounts/${id}`),
   getTransactions: (id: string, params?: Record<string, unknown>) =>
     apiClient.get(`/accounts/${id}/transactions`, { params }),
+  getAllTransactions: (params?: Record<string, unknown>) =>
+    apiClient.get('/accounts/transactions', { params }),
   deposit: (data: unknown) => apiClient.post('/accounts/deposit', data),
   withdraw: (data: unknown) => apiClient.post('/accounts/withdraw', data),
   transfer: (data: unknown) => apiClient.post('/accounts/transfer', data),
+  getStatement: (id: string, params?: Record<string, unknown>) =>
+    apiClient.get(`/accounts/${id}/statement`, { params }),
 };
 
 // Reports

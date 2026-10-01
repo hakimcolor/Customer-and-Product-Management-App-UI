@@ -1,60 +1,93 @@
 'use client';
 import { useState } from 'react';
-import { Search, AlertTriangle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Search,
+  AlertTriangle,
+  Package,
+  Boxes,
+  TrendingDown,
+  DollarSign,
+} from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency } from '@/lib/utils/format';
+import apiClient from '@/lib/api/client';
 
-const mockStock = Array.from({ length: 22 }, (_, i) => ({
-  id: String(i + 1),
-  product: [
-    'Samsung A55',
-    'iPhone 15',
-    'Laptop Dell',
-    'USB Hub',
-    'Wireless Mouse',
-    'Keyboard',
-    'Monitor 24"',
-    'HDMI Cable',
-  ][i % 8],
-  sku: `SKU-${String(i + 1).padStart(4, '0')}`,
-  category: ['Electronics', 'Accessories', 'Computers'][i % 3],
-  branch: ['Main Branch', 'Dhaka Branch'][i % 2],
-  available: [24, 5, 12, 55, 3, 18, 8, 42][i % 8],
-  reserved: [2, 0, 1, 5, 0, 3, 0, 2][i % 8],
-  damaged: [0, 1, 0, 0, 1, 0, 0, 0][i % 8],
-  alertQty: 10,
-  value: [45000, 120000, 85000, 2500, 1800, 5500, 28000, 800][i % 8],
-}));
+interface StockItem {
+  id: number;
+  productId: number;
+  product: {
+    id: number;
+    title: string;
+    sku?: string;
+    alertQuantity: number;
+    sellingPrice: number;
+    category?: { name: string };
+    brand?: { name: string };
+  };
+  branch?: { name: string };
+  warehouse?: { name: string };
+  quantity: number;
+  reservedQuantity?: number;
+  damagedQuantity?: number;
+}
+
+interface StockResponse {
+  data: StockItem[];
+  total: number;
+  totalPages: number;
+}
 
 const TABS = ['All', 'Low Stock', 'Out of Stock', 'Damaged'];
 
-const getStatus = (
-  available: number,
-  alertQty: number
-): 'success' | 'warning' | 'danger' => {
-  if (available === 0) return 'danger';
-  if (available <= alertQty) return 'warning';
+function getStatus(
+  qty: number,
+  alert: number
+): 'success' | 'warning' | 'danger' {
+  if (qty === 0) return 'danger';
+  if (qty <= alert) return 'warning';
   return 'success';
-};
+}
 
 export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('All');
   const [page, setPage] = useState(1);
 
-  const filtered = mockStock.filter((s) => {
-    const matchSearch =
-      s.product.toLowerCase().includes(search.toLowerCase()) ||
-      s.sku.includes(search);
-    if (tab === 'Low Stock')
-      return matchSearch && s.available > 0 && s.available <= s.alertQty;
-    if (tab === 'Out of Stock') return matchSearch && s.available === 0;
-    if (tab === 'Damaged') return matchSearch && s.damaged > 0;
-    return matchSearch;
+  const stockParam =
+    tab === 'Low Stock'
+      ? 'low'
+      : tab === 'Out of Stock'
+        ? 'out'
+        : tab === 'Damaged'
+          ? 'damaged'
+          : undefined;
+
+  const { data, isLoading } = useQuery<StockResponse>({
+    queryKey: ['stock', page, search, tab],
+    queryFn: async () => {
+      const params: Record<string, unknown> = { page, limit: 10 };
+      if (search) params.search = search;
+      if (stockParam) params.status = stockParam;
+      const res = await apiClient.get('/reports/stock', { params });
+      return res.data?.data ?? res.data;
+    },
   });
+
+  const items = data?.data ?? [];
+  const total = data?.total ?? 0;
+
+  const lowCount = items.filter(
+    (i) => i.quantity > 0 && i.quantity <= i.product.alertQuantity
+  ).length;
+  const outCount = items.filter((i) => i.quantity === 0).length;
+  const stockValue = items.reduce(
+    (s, i) => s + i.quantity * i.product.sellingPrice,
+    0
+  );
 
   return (
     <div>
@@ -68,21 +101,40 @@ export default function InventoryPage() {
         {[
           {
             label: 'Stock Value',
-            value: formatCurrency(3200000),
+            value: formatCurrency(stockValue),
+            icon: <DollarSign size={20} className="text-[var(--primary)]" />,
             alert: false,
           },
-          { label: 'Total Products', value: '248', alert: false },
-          { label: 'Low Stock', value: '18', alert: true },
-          { label: 'Out of Stock', value: '7', alert: true },
+          {
+            label: 'Total Items',
+            value: String(total),
+            icon: <Package size={20} className="text-blue-500" />,
+            alert: false,
+          },
+          {
+            label: 'Low Stock',
+            value: String(lowCount),
+            icon: <AlertTriangle size={20} className="text-amber-500" />,
+            alert: true,
+          },
+          {
+            label: 'Out of Stock',
+            value: String(outCount),
+            icon: <Boxes size={20} className="text-red-500" />,
+            alert: true,
+          },
         ].map((s) => (
           <Card key={s.label}>
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
-              {s.label}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-[var(--muted)] uppercase tracking-wider font-semibold">
+                {s.label}
+              </p>
+              {s.icon}
+            </div>
             <p
-              className={`text-xl font-bold mt-1 ${s.alert ? 'text-amber-600' : 'text-[var(--foreground)]'}`}
+              className={`text-2xl font-bold mt-1 ${s.alert ? 'text-amber-600' : 'text-[var(--foreground)]'}`}
             >
-              {s.value}
+              {isLoading ? '—' : s.value}
             </p>
           </Card>
         ))}
@@ -134,6 +186,7 @@ export default function InventoryPage() {
                 {[
                   'Product',
                   'SKU',
+                  'Category',
                   'Branch',
                   'Available',
                   'Reserved',
@@ -151,79 +204,101 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 9 }).map((__, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-20" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-16 text-center text-[var(--muted)]"
                   >
-                    No items found
+                    <TrendingDown
+                      size={40}
+                      className="mx-auto mb-3 opacity-30"
+                    />
+                    <p className="font-semibold text-base text-[var(--foreground)]">
+                      No stock items found
+                    </p>
+                    <p className="text-sm mt-1">
+                      Add products and opening stock to track inventory
+                    </p>
                   </td>
                 </tr>
               ) : (
-                filtered.slice((page - 1) * 10, page * 10).map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {item.available <= item.alertQty && (
-                          <AlertTriangle
-                            size={13}
-                            className="text-amber-500 shrink-0"
-                          />
-                        )}
-                        <span className="font-medium text-[var(--foreground)]">
-                          {item.product}
+                items.map((item) => {
+                  const qty = item.quantity;
+                  const alert = item.product.alertQuantity;
+                  return (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {qty <= alert && (
+                            <AlertTriangle
+                              size={13}
+                              className="text-amber-500 shrink-0"
+                            />
+                          )}
+                          <span className="font-medium text-[var(--foreground)]">
+                            {item.product.title}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
+                        {item.product.sku ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--foreground)]">
+                        {item.product.category?.name ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--foreground)]">
+                        {item.branch?.name ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
+                        {qty}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted)]">
+                        {item.reservedQuantity ?? 0}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={
+                            (item.damagedQuantity ?? 0) > 0
+                              ? 'text-red-500 font-medium'
+                              : 'text-[var(--muted)]'
+                          }
+                        >
+                          {item.damagedQuantity ?? 0}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                      {item.sku}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--foreground)]">
-                      {item.branch}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-[var(--foreground)]">
-                      {item.available}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">
-                      {item.reserved}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          item.damaged > 0
-                            ? 'text-red-500 font-medium'
-                            : 'text-[var(--muted)]'
-                        }
-                      >
-                        {item.damaged}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[var(--foreground)]">
-                      {formatCurrency(item.value * item.available)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={getStatus(item.available, item.alertQty)}>
-                        {item.available === 0
-                          ? 'Out'
-                          : item.available <= item.alertQty
-                            ? 'Low'
-                            : 'OK'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3 text-[var(--foreground)]">
+                        {formatCurrency(qty * item.product.sellingPrice)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={getStatus(qty, alert)}>
+                          {qty === 0 ? 'Out' : qty <= alert ? 'Low' : 'OK'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
         <Pagination
           page={page}
-          totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
-          total={filtered.length}
+          totalPages={Math.max(1, data?.totalPages ?? 1)}
+          total={total}
           limit={10}
           onPageChange={setPage}
         />
