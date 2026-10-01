@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Search,
   Plus,
@@ -15,24 +16,23 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { formatCurrency } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
+import apiClient from '@/lib/api/client';
+import { customersApi } from '@/lib/api/endpoints';
 
-const PRODUCTS = [
-  { id: '1', name: 'Samsung A55', price: 45000, sku: 'SM-A55', stock: 12 },
-  { id: '2', name: 'iPhone 15', price: 120000, sku: 'IP-15', stock: 5 },
-  { id: '3', name: 'USB Cable', price: 250, sku: 'USB-01', stock: 55 },
-  { id: '4', name: 'Wireless Mouse', price: 1800, sku: 'WM-01', stock: 3 },
-  { id: '5', name: 'Keyboard', price: 5500, sku: 'KB-01', stock: 18 },
-  { id: '6', name: 'Monitor 24"', price: 28000, sku: 'MON-24', stock: 8 },
-  { id: '7', name: 'Laptop Bag', price: 3500, sku: 'LB-01', stock: 22 },
-  { id: '8', name: 'HDMI Cable', price: 800, sku: 'HDM-01', stock: 42 },
-  { id: '9', name: 'Power Bank', price: 4500, sku: 'PB-01', stock: 15 },
-  { id: '10', name: 'Earphones', price: 1200, sku: 'EP-01', stock: 30 },
-  { id: '11', name: 'Smart Watch', price: 15000, sku: 'SW-01', stock: 7 },
-  { id: '12', name: 'Tablet Stand', price: 2200, sku: 'TS-01', stock: 19 },
-];
-
+interface POSProduct {
+  id: number;
+  title: string;
+  sellingPrice: number;
+  sku?: string;
+  stocks?: { quantity: number }[];
+  alertQuantity: number;
+}
+interface Customer {
+  id: number;
+  name: string;
+}
 interface CartItem {
-  id: string;
+  id: number;
   name: string;
   price: number;
   qty: number;
@@ -41,45 +41,84 @@ interface CartItem {
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState(0);
-  const [customer, setCustomer] = useState('Walk-in Customer');
+  const [customerId, setCustomerId] = useState('');
   const [payOpen, setPayOpen] = useState(false);
   const [payMethod, setPayMethod] = useState('cash');
   const [paid, setPaid] = useState('');
 
-  const filtered = PRODUCTS.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const addToCart = (product: (typeof PRODUCTS)[0]) => {
+  const { data: productsRaw, isLoading: productsLoading } = useQuery<
+    POSProduct[]
+  >({
+    queryKey: ['pos-products', debouncedSearch],
+    queryFn: async () => {
+      const res = await apiClient.get('/pos/search', {
+        params: { q: debouncedSearch || undefined, limit: 24 },
+      });
+      const d = res.data?.data ?? res.data;
+      return d?.data ?? d;
+    },
+  });
+
+  const { data: customersRaw } = useQuery<Customer[]>({
+    queryKey: ['customers-pos'],
+    queryFn: async () => {
+      const res = await customersApi.getAll({ limit: 200 });
+      const d = res.data?.data ?? res.data;
+      return d?.data ?? d;
+    },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      apiClient.post('/pos/checkout', payload),
+    onSuccess: (res) => {
+      const inv = res.data?.data?.invoiceNo ?? res.data?.invoiceNo ?? '';
+      toast.success(`Payment successful! ${inv}`);
+      clearCart();
+      setPaid('');
+      setPayOpen(false);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      toast.error(msg ?? 'Payment failed');
+    },
+  });
+
+  const products: POSProduct[] = productsRaw ?? [];
+  const customers: Customer[] = customersRaw ?? [];
+
+  function getStock(p: POSProduct) {
+    return p.stocks?.reduce((s, st) => s + st.quantity, 0) ?? 0;
+  }
+
+  function addToCart(p: POSProduct) {
+    const stock = getStock(p);
     setCart((prev) => {
-      const ex = prev.find((i) => i.id === product.id);
+      const ex = prev.find((i) => i.id === p.id);
       if (ex) {
-        if (ex.qty >= product.stock) {
-          toast.warning(`Only ${product.stock} in stock`);
+        if (ex.qty >= stock) {
+          toast.warning(`Only ${stock} in stock`);
           return prev;
         }
-        return prev.map((i) =>
-          i.id === product.id ? { ...i, qty: i.qty + 1 } : i
-        );
+        return prev.map((i) => (i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
       }
       return [
         ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          qty: 1,
-          stock: product.stock,
-        },
+        { id: p.id, name: p.title, price: p.sellingPrice, qty: 1, stock },
       ];
     });
-  };
+  }
 
-  const updateQty = (id: string, delta: number) => {
+  function updateQty(id: number, delta: number) {
     setCart((prev) =>
       prev.map((i) => {
         if (i.id !== id) return i;
@@ -91,103 +130,136 @@ export default function POSPage() {
         return next < 1 ? i : { ...i, qty: next };
       })
     );
-  };
+  }
 
-  const removeItem = (id: string) =>
+  function removeItem(id: number) {
     setCart((prev) => prev.filter((i) => i.id !== id));
-  const clearCart = () => {
+  }
+  function clearCart() {
     setCart([]);
     setDiscount(0);
-  };
+  }
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const totalItems = cart.reduce((s, i) => s + i.qty, 0);
   const total = Math.max(0, subtotal - discount);
   const change = Math.max(0, Number(paid) - total);
 
-  const handlePay = () => {
+  function handlePay() {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
-    toast.success('Payment successful! Receipt printed.');
-    clearCart();
-    setPaid('');
-    setPayOpen(false);
-  };
+    checkoutMutation.mutate({
+      customerId: customerId ? parseInt(customerId) : undefined,
+      items: cart.map((i) => ({
+        productId: i.id,
+        quantity: i.qty,
+        price: i.price,
+      })),
+      discount,
+      paidAmount: Number(paid) || total,
+      paymentMethod: payMethod.toUpperCase(),
+    });
+  }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-5 overflow-hidden bg-[var(--background)]">
-      {/* Products */}
-      <div className="flex-1 flex flex-col overflow-hidden border-r border-[var(--border)]">
-        <div className="p-4 bg-[var(--card)] border-b border-[var(--border)] shrink-0">
+      {/* Products Panel */}
+      <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+        <div className="p-4 bg-card border-b border-border shrink-0">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="font-bold text-lg text-[var(--foreground)]">
-              Point of Sale
-            </h1>
+            <h1 className="font-bold text-lg text-foreground">Point of Sale</h1>
             <select
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              className="cursor-pointer px-3 py-1.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              className="cursor-pointer px-3 py-1.5 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             >
-              <option>Walk-in Customer</option>
-              <option>Rahim Enterprise</option>
-              <option>Karim Store</option>
-              <option>ABC Ltd.</option>
+              <option value="">Walk-in Customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </div>
           <div className="relative">
             <Search
               size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
             />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search or scan barcode..."
-              className="cursor-text w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+              className="cursor-text w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
               autoFocus
             />
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => addToCart(p)}
-                disabled={p.stock === 0}
-                className="cursor-pointer flex flex-col items-center p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)] hover:bg-[var(--primary-light)] hover:shadow-md active:scale-95 transition-all duration-150 select-none disabled:opacity-50 disabled:cursor-not-allowed group"
-              >
-                <div className="w-12 h-12 rounded-xl bg-[var(--primary-light)] group-hover:bg-white dark:group-hover:bg-slate-800 flex items-center justify-center mb-2.5 text-[var(--primary)] font-bold text-lg transition-colors select-none">
-                  {p.name.charAt(0)}
+          {productsLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-28 animate-pulse bg-gray-200 dark:bg-slate-700 rounded-xl"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {products.map((p) => {
+                const stock = getStock(p);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    disabled={stock === 0}
+                    className="cursor-pointer flex flex-col items-center p-4 rounded-xl border border-border bg-card hover:border-primary hover:bg-[var(--primary-light)] hover:shadow-md active:scale-95 transition-all duration-150 select-none disabled:opacity-50 disabled:cursor-not-allowed group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-[var(--primary-light)] group-hover:bg-white dark:group-hover:bg-slate-800 flex items-center justify-center mb-2.5 text-primary font-bold text-lg transition-colors select-none">
+                      {p.title.charAt(0)}
+                    </div>
+                    <p className="text-xs font-medium text-foreground text-center leading-tight mb-1 line-clamp-2">
+                      {p.title}
+                    </p>
+                    <p className="text-sm font-bold text-primary">
+                      {formatCurrency(p.sellingPrice)}
+                    </p>
+                    {stock <= p.alertQuantity && stock > 0 && (
+                      <Badge variant="warning" className="mt-1 text-[10px]">
+                        Low: {stock}
+                      </Badge>
+                    )}
+                    {stock === 0 && (
+                      <Badge variant="danger" className="mt-1 text-[10px]">
+                        Out
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
+              {!productsLoading && products.length === 0 && (
+                <div className="col-span-full text-center py-12 text-muted">
+                  <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No products found</p>
                 </div>
-                <p className="text-xs font-medium text-[var(--foreground)] text-center leading-tight mb-1 line-clamp-2">
-                  {p.name}
-                </p>
-                <p className="text-sm font-bold text-[var(--primary)]">
-                  {formatCurrency(p.price)}
-                </p>
-                {p.stock <= 5 && p.stock > 0 && (
-                  <Badge variant="warning" className="mt-1 text-[10px]">
-                    Low: {p.stock}
-                  </Badge>
-                )}
-              </button>
-            ))}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Cart */}
-      <div className="w-80 lg:w-96 flex flex-col bg-[var(--card)] shrink-0">
-        <div className="p-4 border-b border-[var(--border)] shrink-0">
+      {/* Cart Panel */}
+      <div className="w-80 lg:w-96 flex flex-col bg-card shrink-0">
+        <div className="p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <ShoppingCart size={18} className="text-[var(--primary)]" />
-            <h2 className="font-semibold text-[var(--foreground)]">Cart</h2>
+            <ShoppingCart size={18} className="text-primary" />
+            <h2 className="font-semibold text-foreground">Cart</h2>
             {cart.length > 0 && (
-              <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--primary)] text-white select-none">
+              <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-primary text-white select-none">
                 {totalItems} item{totalItems !== 1 ? 's' : ''}
               </span>
             )}
@@ -196,7 +268,7 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto p-3">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[var(--muted)] gap-3">
+            <div className="flex flex-col items-center justify-center h-full text-muted gap-3">
               <ShoppingCart size={44} className="opacity-20" />
               <p className="text-sm font-medium">Cart is empty</p>
               <p className="text-xs">Click products to add them</p>
@@ -206,35 +278,35 @@ export default function POSPage() {
               {cart.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2.5 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)] hover:border-[var(--primary)] transition-colors"
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-background hover:border-primary transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {item.name}
                     </p>
-                    <p className="text-xs text-[var(--muted)]">
+                    <p className="text-xs text-muted">
                       {formatCurrency(item.price)} each
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => updateQty(item.id, -1)}
-                      className="cursor-pointer w-6 h-6 rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 text-[var(--foreground)] active:scale-90 transition-all"
+                      className="cursor-pointer w-6 h-6 rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 text-foreground active:scale-90 transition-all"
                     >
                       <Minus size={11} />
                     </button>
-                    <span className="w-7 text-center text-sm font-semibold text-[var(--foreground)] select-none">
+                    <span className="w-7 text-center text-sm font-semibold text-foreground select-none">
                       {item.qty}
                     </span>
                     <button
                       onClick={() => updateQty(item.id, 1)}
-                      className="cursor-pointer w-6 h-6 rounded-md bg-[var(--primary-light)] flex items-center justify-center hover:bg-green-200 dark:hover:bg-green-900/40 text-[var(--primary)] active:scale-90 transition-all"
+                      className="cursor-pointer w-6 h-6 rounded-md bg-[var(--primary-light)] flex items-center justify-center hover:bg-green-200 dark:hover:bg-green-900/40 text-primary active:scale-90 transition-all"
                     >
                       <Plus size={11} />
                     </button>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-[var(--foreground)]">
+                    <p className="text-sm font-bold text-foreground">
                       {formatCurrency(item.price * item.qty)}
                     </p>
                     <button
@@ -252,15 +324,15 @@ export default function POSPage() {
         </div>
 
         {cart.length > 0 && (
-          <div className="p-4 border-t border-[var(--border)] shrink-0">
+          <div className="p-4 border-t border-border shrink-0">
             <div className="space-y-2 mb-4 text-sm">
-              <div className="flex justify-between text-[var(--muted)]">
+              <div className="flex justify-between text-muted">
                 <span>Subtotal</span>
-                <span className="font-medium text-[var(--foreground)]">
+                <span className="font-medium text-foreground">
                   {formatCurrency(subtotal)}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-[var(--muted)]">
+              <div className="flex justify-between items-center text-muted">
                 <span>Discount</span>
                 <input
                   type="number"
@@ -269,12 +341,12 @@ export default function POSPage() {
                     setDiscount(Math.max(0, Number(e.target.value)))
                   }
                   placeholder="0"
-                  className="cursor-text w-24 text-right px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-colors"
+                  className="cursor-text w-24 text-right px-2 py-1 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
-              <div className="flex justify-between font-bold text-base text-[var(--foreground)] pt-2 border-t border-[var(--border)]">
+              <div className="flex justify-between font-bold text-base text-foreground pt-2 border-t border-border">
                 <span>Total</span>
-                <span className="text-[var(--primary)] text-lg">
+                <span className="text-primary text-lg">
                   {formatCurrency(total)}
                 </span>
               </div>
@@ -283,7 +355,7 @@ export default function POSPage() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => toast.success('Sale held')}
+                onClick={() => toast.info('Hold feature coming soon')}
               >
                 Hold
               </Button>
@@ -312,7 +384,11 @@ export default function POSPage() {
             <Button variant="outline" onClick={() => setPayOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handlePay} icon={<CreditCard size={15} />}>
+            <Button
+              onClick={handlePay}
+              icon={<CreditCard size={15} />}
+              loading={checkoutMutation.isPending}
+            >
               Confirm Payment
             </Button>
           </>
@@ -320,16 +396,15 @@ export default function POSPage() {
       >
         <div className="space-y-4">
           <div className="bg-[var(--primary-light)] dark:bg-green-900/20 rounded-xl p-4 text-center">
-            <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
+            <p className="text-xs text-muted uppercase tracking-wider">
               Amount Due
             </p>
-            <p className="text-3xl font-bold text-[var(--primary)] mt-1">
+            <p className="text-3xl font-bold text-primary mt-1">
               {formatCurrency(total)}
             </p>
-            <p className="text-xs text-[var(--muted)] mt-1">{customer}</p>
           </div>
           <div>
-            <p className="text-sm font-medium text-[var(--foreground)] mb-2">
+            <p className="text-sm font-medium text-foreground mb-2">
               Payment Method
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -347,8 +422,8 @@ export default function POSPage() {
                   onClick={() => setPayMethod(m.id)}
                   className={`cursor-pointer flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-xs font-medium transition-all select-none ${
                     payMethod === m.id
-                      ? 'border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]'
-                      : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-gray-50 dark:hover:bg-slate-800'
+                      ? 'border-primary bg-[var(--primary-light)] text-primary'
+                      : 'border-border text-foreground hover:border-primary hover:bg-gray-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   {m.icon}
@@ -360,7 +435,7 @@ export default function POSPage() {
           {payMethod === 'cash' && (
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-[var(--foreground)] block mb-1.5">
+                <label className="text-sm font-medium text-foreground block mb-1.5">
                   Amount Tendered
                 </label>
                 <input
@@ -368,12 +443,12 @@ export default function POSPage() {
                   value={paid}
                   onChange={(e) => setPaid(e.target.value)}
                   placeholder={String(total)}
-                  className="cursor-text w-full px-3 py-2.5 text-lg font-bold rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+                  className="cursor-text w-full px-3 py-2.5 text-lg font-bold rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                 />
               </div>
               {paid && Number(paid) >= total && (
                 <div className="flex justify-between items-center bg-green-50 dark:bg-green-900/20 rounded-xl px-4 py-3">
-                  <span className="text-sm font-medium text-[var(--foreground)]">
+                  <span className="text-sm font-medium text-foreground">
                     Change
                   </span>
                   <span className="text-xl font-bold text-green-600">

@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
   Bar,
@@ -23,7 +24,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils/format';
-import { toast } from '@/components/ui/Toast';
+import { reportsApi } from '@/lib/api/endpoints';
+import apiClient from '@/lib/api/client';
 
 const CATEGORIES = [
   {
@@ -34,58 +36,113 @@ const CATEGORIES = [
       'Monthly Sales',
       'Product Sales',
       'Customer Sales',
-      'Branch Sales',
       'Payment Summary',
     ],
   },
   {
     label: 'Purchases',
     icon: <Package size={16} />,
-    reports: [
-      'Daily Purchases',
-      'Monthly Purchases',
-      'Supplier Purchases',
-      'Product Purchases',
-    ],
+    reports: ['Daily Purchases', 'Monthly Purchases', 'Supplier Purchases'],
   },
   {
     label: 'Inventory',
     icon: <Package size={16} />,
-    reports: ['Stock Report', 'Low Stock', 'Stock Movement', 'Stock Valuation'],
+    reports: ['Stock Report', 'Low Stock', 'Stock Valuation'],
   },
   {
     label: 'Finance',
     icon: <DollarSign size={16} />,
-    reports: ['Profit & Loss', 'Cash Flow', 'Expense Report', 'Ledger Report'],
+    reports: ['Profit & Loss', 'Cash Flow', 'Expense Report'],
   },
   {
     label: 'Customers',
     icon: <Users size={16} />,
-    reports: ['Customer Due', 'Customer Sales', 'Customer Ledger'],
+    reports: ['Customer Dues', 'Customer Sales'],
   },
   {
     label: 'Suppliers',
     icon: <Truck size={16} />,
-    reports: ['Supplier Due', 'Supplier Purchases', 'Supplier Ledger'],
+    reports: ['Supplier Dues', 'Supplier Purchases'],
   },
 ];
 
-const chartData = [
-  { name: 'Jan', sales: 185000, purchases: 120000, profit: 65000 },
-  { name: 'Feb', sales: 210000, purchases: 130000, profit: 80000 },
-  { name: 'Mar', sales: 195000, purchases: 115000, profit: 80000 },
-  { name: 'Apr', sales: 240000, purchases: 145000, profit: 95000 },
-  { name: 'May', sales: 228000, purchases: 135000, profit: 93000 },
-  { name: 'Jun', sales: 275000, purchases: 155000, profit: 120000 },
-];
+function defaultDates() {
+  const now = new Date();
+  const firstOfYear = `${now.getFullYear()}-01-01`;
+  const today = now.toISOString().split('T')[0];
+  return { from: firstOfYear, to: today };
+}
 
 export default function ReportsPage() {
+  const { from: defFrom, to: defTo } = defaultDates();
   const [activeCategory, setActiveCategory] = useState('Sales');
   const [activeReport, setActiveReport] = useState('Monthly Sales');
-  const [dateFrom, setDateFrom] = useState('2026-01-01');
-  const [dateTo, setDateTo] = useState('2026-09-29');
+  const [dateFrom, setDateFrom] = useState(defFrom);
+  const [dateTo, setDateTo] = useState(defTo);
+  const [generated, setGenerated] = useState({
+    from: defFrom,
+    to: defTo,
+    cat: 'Sales',
+  });
 
   const currentCategory = CATEGORIES.find((c) => c.label === activeCategory);
+
+  const { data: salesData } = useQuery({
+    queryKey: ['report-sales', generated],
+    queryFn: async () => {
+      const res = await reportsApi.sales({
+        startDate: generated.from,
+        endDate: generated.to,
+      });
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const { data: profitData } = useQuery({
+    queryKey: ['report-profit', generated],
+    queryFn: async () => {
+      const res = await reportsApi.profit({
+        startDate: generated.from,
+        endDate: generated.to,
+      });
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const { data: purchasesData } = useQuery({
+    queryKey: ['report-purchases', generated],
+    queryFn: async () => {
+      const res = await reportsApi.purchases({
+        startDate: generated.from,
+        endDate: generated.to,
+      });
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const { data: chartRaw } = useQuery({
+    queryKey: ['report-chart', generated],
+    queryFn: async () => {
+      const res = await apiClient.get('/reports/dashboard', {
+        params: { period: 'month' },
+      });
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const chartData = chartRaw?.monthlySales ?? chartRaw?.chartData ?? [];
+
+  const totalSales =
+    salesData?.totalAmount ?? salesData?._sum?.totalAmount ?? 0;
+  const totalPurchases =
+    purchasesData?.totalAmount ?? purchasesData?._sum?.totalAmount ?? 0;
+  const netProfit =
+    profitData?.netProfit ?? profitData?.profit ?? totalSales - totalPurchases;
+
+  function handleExport() {
+    const url = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1'}/export/sales?startDate=${dateFrom}&endDate=${dateTo}`;
+    window.open(url, '_blank');
+  }
 
   return (
     <div>
@@ -96,7 +153,7 @@ export default function ReportsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-        {/* Sidebar */}
+        {/* Category sidebar */}
         <div className="space-y-1.5">
           {CATEGORIES.map((cat) => (
             <button
@@ -107,8 +164,8 @@ export default function ReportsPage() {
               }}
               className={`cursor-pointer w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all select-none border ${
                 activeCategory === cat.label
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
-                  : 'bg-[var(--card)] border-[var(--border)] text-[var(--foreground)] hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-[var(--primary)]'
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'bg-card border-border text-foreground hover:bg-gray-50 dark:hover:bg-slate-800 hover:border-primary'
               }`}
             >
               <span className="shrink-0">{cat.icon}</span>
@@ -123,13 +180,13 @@ export default function ReportsPage() {
           <Card>
             <div className="flex flex-wrap gap-3 items-end">
               <div className="flex-1 min-w-40">
-                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
                   Report Type
                 </label>
                 <select
                   value={activeReport}
                   onChange={(e) => setActiveReport(e.target.value)}
-                  className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+                  className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                 >
                   {currentCategory?.reports.map((r) => (
                     <option key={r}>{r}</option>
@@ -137,28 +194,36 @@ export default function ReportsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
                   From
                 </label>
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider block mb-1.5">
+                <label className="text-xs font-semibold text-muted uppercase tracking-wider block mb-1.5">
                   To
                 </label>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+                  className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                 />
               </div>
-              <Button onClick={() => toast.success('Report generated')}>
+              <Button
+                onClick={() =>
+                  setGenerated({
+                    from: dateFrom,
+                    to: dateTo,
+                    cat: activeCategory,
+                  })
+                }
+              >
                 Generate
               </Button>
             </div>
@@ -167,15 +232,18 @@ export default function ReportsPage() {
           {/* Summary */}
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Total Sales', value: formatCurrency(1333000) },
-              { label: 'Total Purchases', value: formatCurrency(800000) },
-              { label: 'Net Profit', value: formatCurrency(533000) },
+              { label: 'Total Sales', value: formatCurrency(totalSales) },
+              {
+                label: 'Total Purchases',
+                value: formatCurrency(totalPurchases),
+              },
+              { label: 'Net Profit', value: formatCurrency(netProfit) },
             ].map((s) => (
               <Card key={s.label}>
-                <p className="text-xs text-[var(--muted)] uppercase tracking-wider">
+                <p className="text-xs text-muted uppercase tracking-wider">
                   {s.label}
                 </p>
-                <p className="text-xl font-bold text-[var(--foreground)] mt-1">
+                <p className="text-xl font-bold text-foreground mt-1">
                   {s.value}
                 </p>
               </Card>
@@ -186,11 +254,11 @@ export default function ReportsPage() {
           <Card>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="font-semibold text-[var(--foreground)]">
+                <h2 className="font-semibold text-foreground">
                   {activeReport}
                 </h2>
-                <p className="text-xs text-[var(--muted)] mt-0.5">
-                  {dateFrom} — {dateTo}
+                <p className="text-xs text-muted mt-0.5">
+                  {generated.from} — {generated.to}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -198,15 +266,15 @@ export default function ReportsPage() {
                   variant="outline"
                   size="sm"
                   icon={<FileDown size={14} />}
-                  onClick={() => toast.success('Exporting...')}
+                  onClick={handleExport}
                 >
-                  Export
+                  Export CSV
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   icon={<Printer size={14} />}
-                  onClick={() => toast.success('Printing...')}
+                  onClick={() => window.print()}
                 >
                   Print
                 </Button>
@@ -219,7 +287,7 @@ export default function ReportsPage() {
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
-                  dataKey="name"
+                  dataKey="month"
                   tick={{ fontSize: 12, fill: 'var(--muted)' }}
                   axisLine={false}
                   tickLine={false}
