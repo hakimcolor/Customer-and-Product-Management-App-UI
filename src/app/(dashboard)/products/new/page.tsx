@@ -40,8 +40,29 @@ export default function AddProductPage() {
   });
 
   const onSubmit = async (data: FormData) => {
-    console.log(data);
-    toast.success('Product created successfully');
+    try {
+      const { productsApi } = await import('@/lib/api/endpoints');
+      await productsApi.create({
+        title: data.name,
+        sku: data.sku || undefined,
+        barcode: data.barcode || undefined,
+        purchasePrice: parseFloat(data.purchasePrice) || 0,
+        wholesalePrice: data.wholesalePrice
+          ? parseFloat(data.wholesalePrice)
+          : undefined,
+        sellingPrice: parseFloat(data.retailPrice),
+        minSellingPrice: data.minSellingPrice
+          ? parseFloat(data.minSellingPrice)
+          : undefined,
+        alertQuantity: parseInt(data.alertQty) || 5,
+        vat: data.vat ? parseFloat(data.vat) : undefined,
+        description: data.description || undefined,
+      });
+      toast.success('Product created successfully');
+      window.location.href = '/products';
+    } catch {
+      toast.error('Failed to create product');
+    }
   };
 
   return (
