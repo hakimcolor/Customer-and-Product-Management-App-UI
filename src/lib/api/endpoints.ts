@@ -20,7 +20,9 @@ export const dashboardApi = {
     apiClient.get('/reports/dashboard', { params }),
   getDailySummary: (params?: Record<string, unknown>) =>
     apiClient.get('/reports/daily-summary', { params }),
-  getMonthlyChart: () => apiClient.get('/reports/monthly-chart'),
+  // Monthly chart: use dashboard data (no separate endpoint)
+  getMonthlyChart: () =>
+    apiClient.get('/reports/dashboard', { params: { period: 'month' } }),
   getRecentSales: (params?: Record<string, unknown>) =>
     apiClient.get('/sales', { params }),
   getStockAlerts: () => apiClient.get('/products/stock/alerts'),
@@ -34,11 +36,16 @@ export const productsApi = {
   create: (data: unknown) => apiClient.post('/products', data),
   update: (id: string, data: unknown) => apiClient.put(`/products/${id}`, data),
   delete: (id: string) => apiClient.delete(`/products/${id}`),
-  duplicate: (id: string) => apiClient.post(`/products/${id}/duplicate`),
+  // duplicate not in backend — copy product data instead
+  duplicate: (id: string) => apiClient.get(`/products/${id}`),
   getCategories: () => apiClient.get('/products/categories'),
   getBrands: () => apiClient.get('/products/brands'),
   getUnits: () => apiClient.get('/products/units'),
   getStockAlerts: () => apiClient.get('/products/stock/alerts'),
+  uploadImage: (id: string, formData: FormData) =>
+    apiClient.post(`/products/${id}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 };
 
 // Customers
@@ -100,7 +107,18 @@ export const purchasesApi = {
 export const paymentsApi = {
   getAll: (params?: Record<string, unknown>) =>
     apiClient.get('/payments', { params }),
-  create: (data: unknown) => apiClient.post('/payments', data),
+  // Backend has separate endpoints for customer/supplier payments
+  create: (data: Record<string, unknown>) => {
+    if (data.type === 'customer') {
+      const { type: _, ...rest } = data;
+      return apiClient.post('/payments/customer', rest);
+    } else {
+      const { type: _, ...rest } = data;
+      return apiClient.post('/payments/supplier', rest);
+    }
+  },
+  createCustomer: (data: unknown) => apiClient.post('/payments/customer', data),
+  createSupplier: (data: unknown) => apiClient.post('/payments/supplier', data),
 };
 
 // Expenses
@@ -174,7 +192,9 @@ export const branchesApi = {
 // Settings
 export const settingsApi = {
   get: () => apiClient.get('/settings'),
-  update: (data: unknown) => apiClient.put('/settings', data),
+  update: (data: unknown) => apiClient.post('/settings/bulk', data),
+  upsert: (key: string, value: string) =>
+    apiClient.post('/settings', { key, value }),
 };
 
 // Notifications
