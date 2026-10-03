@@ -172,13 +172,13 @@ export function Sidebar() {
         className={cn(
           'fixed left-0 top-0 h-full z-40 flex flex-col',
           'bg-[var(--card)] border-r border-[var(--border)]',
-          'transition-all duration-300 ease-in-out',
+          'transition-all duration-300 ease-in-out shadow-sm',
           sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
         )}
       >
         {/* Logo + toggle */}
         <div className="flex items-center h-16 px-4 border-b border-[var(--border)] shrink-0 gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0 shadow-sm">
             <span className="text-white font-bold text-sm select-none">B</span>
           </div>
           {!sidebarCollapsed && (
@@ -189,7 +189,7 @@ export function Sidebar() {
           <button
             onClick={toggleSidebar}
             className={cn(
-              'cursor-pointer p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors shrink-0',
+              'cursor-pointer p-1.5 rounded-lg text-[var(--muted)] hover:text-white hover:bg-[var(--primary)] transition-colors shrink-0',
               sidebarCollapsed && 'mx-auto'
             )}
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -219,7 +219,7 @@ export function Sidebar() {
                     'group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium select-none',
                     active
                       ? 'bg-[var(--primary)] text-white shadow-sm'
-                      : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]',
+                      : 'text-[var(--muted)] hover:bg-[var(--primary)] hover:text-white',
                     sidebarCollapsed && 'justify-center px-0'
                   )}
                 >
@@ -243,7 +243,7 @@ export function Sidebar() {
                     'cursor-pointer w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-sm font-medium select-none',
                     hasActiveChild
                       ? 'text-[var(--primary)] bg-[var(--primary-light)] dark:bg-green-900/20'
-                      : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]',
+                      : 'text-[var(--muted)] hover:bg-[var(--primary)] hover:text-white',
                     sidebarCollapsed && 'justify-center px-0'
                   )}
                 >
@@ -273,7 +273,7 @@ export function Sidebar() {
                       isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     )}
                   >
-                    <div className="ml-4 pl-3 border-l-2 border-[var(--border)] mt-0.5 mb-1 space-y-0.5">
+                    <div className="ml-4 pl-3 border-l-2 border-[var(--primary)] mt-0.5 mb-1 space-y-0.5">
                       {item.children?.map((child) => {
                         const childActive = isActive(child.href);
                         return (
@@ -283,8 +283,8 @@ export function Sidebar() {
                             className={cn(
                               'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 select-none',
                               childActive
-                                ? 'bg-[var(--primary-light)] text-[var(--primary)] font-semibold dark:bg-green-900/30'
-                                : 'text-[var(--muted)] hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-[var(--foreground)]'
+                                ? 'bg-[var(--primary)] text-white font-semibold shadow-sm'
+                                : 'text-[var(--muted)] hover:bg-[var(--primary)] hover:text-white'
                             )}
                           >
                             {child.icon}
