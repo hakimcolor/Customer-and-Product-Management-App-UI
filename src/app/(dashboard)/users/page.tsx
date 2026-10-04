@@ -75,6 +75,14 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      const q = e.currentTarget.value.toLowerCase();
+      // search is already bound; just re-set to trigger re-filter
+      setSearch(q);
+    }
+  }
+
   const { data, isLoading } = useQuery<{ data: SystemUser[]; total: number }>({
     queryKey: ['users', search],
     queryFn: async () => {
@@ -218,6 +226,7 @@ export default function UsersPage() {
               placeholder="Search users..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleSearchKey}
               className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
             />
           </div>

@@ -75,6 +75,10 @@ export default function PurchasesPage() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const { data, isLoading } = useQuery<PurchasesResponse>({
     queryKey: ['purchases', page, search, statusFilter],
     queryFn: async () => {
@@ -218,6 +222,7 @@ export default function PurchasesPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKey}
               className="cursor-text pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-64 transition-colors"
             />
           </div>

@@ -35,6 +35,10 @@ export default function PaymentsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [page, setPage] = useState(1);
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const { data, isLoading } = useQuery<PaymentsResponse>({
     queryKey: ['payments', page, search, typeFilter],
     queryFn: async () => {
@@ -114,6 +118,7 @@ export default function PaymentsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKey}
               className="cursor-text pl-9 pr-4 py-2 text-sm rounded-lg border border-border bg-card text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary w-56 transition-colors"
             />
           </div>

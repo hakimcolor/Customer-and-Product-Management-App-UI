@@ -43,6 +43,10 @@ export default function AdjustmentsPage() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const { data, isLoading } = useQuery<AdjResponse>({
     queryKey: ['adjustments', page, search],
     queryFn: async () => {
@@ -132,6 +136,7 @@ export default function AdjustmentsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKey}
               className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-border bg-card text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>

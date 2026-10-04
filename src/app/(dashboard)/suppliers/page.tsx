@@ -55,6 +55,10 @@ export default function SuppliersPage() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const { data, isLoading } = useQuery<SuppliersResponse>({
     queryKey: ['suppliers', page, search],
     queryFn: async () => {
@@ -205,6 +209,7 @@ export default function SuppliersPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKey}
               className="cursor-text w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
             />
           </div>

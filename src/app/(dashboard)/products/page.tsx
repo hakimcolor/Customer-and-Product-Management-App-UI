@@ -81,6 +81,10 @@ export default function ProductsPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<FormState>>({});
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const { data, isLoading } = useQuery<ProductsResponse>({
     queryKey: ['products', page, search, categoryFilter, statusFilter],
     queryFn: async () => {
@@ -138,7 +142,19 @@ export default function ProductsPage() {
   });
 
   const duplicateMutation = useMutation({
-    mutationFn: (id: number) => productsApi.duplicate(String(id)),
+    mutationFn: async (id: number) => {
+      // Fetch product then create a copy
+      const res = await productsApi.getOne(String(id));
+      const p = res.data?.data ?? res.data;
+      return productsApi.create({
+        title: `${p.title} (Copy)`,
+        sellingPrice: p.sellingPrice,
+        purchasePrice: p.purchasePrice,
+        alertQuantity: p.alertQuantity,
+        sku: p.sku ? `${p.sku}-copy` : undefined,
+        categoryId: p.categoryId,
+      });
+    },
     onSuccess: () => {
       toast.success('Product duplicated');
       qc.invalidateQueries({ queryKey: ['products'] });
@@ -155,12 +171,12 @@ export default function ProductsPage() {
   function openEdit(p: Product) {
     setEditProduct(p);
     setForm({
-      title: p.title ?? p.name ?? "",
+      title: p.title ?? '',
       sku: p.sku ?? '',
       sellingPrice: String(p.sellingPrice),
       purchasePrice: String(p.purchasePrice),
       alertQuantity: String(p.alertQuantity),
-      categoryId: '',
+      categoryId: String(p.category ? '' : ''),
     });
     setFormErrors({});
     setShowModal(true);
@@ -275,6 +291,7 @@ export default function ProductsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
+              onKeyDown={handleSearchKey}
               className="cursor-text pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-56 transition-colors"
             />
           </div>

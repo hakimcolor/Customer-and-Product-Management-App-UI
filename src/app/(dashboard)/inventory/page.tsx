@@ -57,6 +57,10 @@ export default function InventoryPage() {
   const [tab, setTab] = useState('All');
   const [page, setPage] = useState(1);
 
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') setPage(1);
+  }
+
   const stockParam =
     tab === 'Low Stock'
       ? 'low'
@@ -155,6 +159,7 @@ export default function InventoryPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
+                onKeyDown={handleSearchKey}
                 className="cursor-text pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] w-56 transition-colors"
               />
             </div>
