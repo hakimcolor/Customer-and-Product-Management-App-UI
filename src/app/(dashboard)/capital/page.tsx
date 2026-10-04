@@ -1,7 +1,14 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import {
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Edit,
+  Trash2,
+} from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card, StatCard } from '@/components/ui/Card';
@@ -9,6 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
 import apiClient from '@/lib/api/client';
@@ -37,6 +45,8 @@ export default function CapitalPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
+  const [editCapital, setEditCapital] = useState<Capital | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
 
@@ -81,9 +91,43 @@ export default function CapitalPage() {
     onError: () => toast.error('Failed to add capital record'),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      apiClient.put(`/capital/${id}`, data),
+    onSuccess: () => {
+      toast.success('Capital record updated');
+      qc.invalidateQueries({ queryKey: ['capital'] });
+      qc.invalidateQueries({ queryKey: ['capital-summary'] });
+      closeModal();
+    },
+    onError: () => toast.error('Failed to update'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/capital/${id}`),
+    onSuccess: () => {
+      toast.success('Capital record deleted');
+      qc.invalidateQueries({ queryKey: ['capital'] });
+      qc.invalidateQueries({ queryKey: ['capital-summary'] });
+      setDeleteId(null);
+    },
+    onError: () => toast.error('Failed to delete'),
+  });
+
   function closeModal() {
     setShowModal(false);
+    setEditCapital(null);
     setForm(emptyForm);
+    setFormErrors({});
+  }
+
+  function openEdit(item: Capital) {
+    setEditCapital(item);
+    setForm({
+      amount: String(item.amount),
+      type: item.type,
+      description: item.description ?? '',
+    });
     setFormErrors({});
   }
 
@@ -93,11 +137,14 @@ export default function CapitalPage() {
       e.amount = 'Valid amount required';
     setFormErrors(e);
     if (Object.keys(e).length > 0) return;
-    createMutation.mutate({
+    const payload = {
       amount: parseFloat(form.amount),
       type: form.type,
       description: form.description || undefined,
-    });
+    };
+    if (editCapital)
+      updateMutation.mutate({ id: editCapital.id, data: payload });
+    else createMutation.mutate(payload);
   }
 
   const items = data?.data ?? [];
@@ -141,7 +188,7 @@ export default function CapitalPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-slate-800/60 border-b border-border">
-                {['Type', 'Amount', 'Description', 'Date'].map((h) => (
+                {['Type', 'Amount', 'Description', 'Date', ''].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wider"
@@ -164,7 +211,7 @@ export default function CapitalPage() {
                 ))
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center text-muted">
+                  <td colSpan={5} className="px-4 py-12 text-center text-muted">
                     No capital records yet
                   </td>
                 </tr>
@@ -195,6 +242,22 @@ export default function CapitalPage() {
                     <td className="px-4 py-3 text-muted text-xs whitespace-nowrap">
                       {formatDate(item.date)}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-muted hover:text-foreground transition-colors"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(item.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-muted hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -211,17 +274,20 @@ export default function CapitalPage() {
       </Card>
 
       <Modal
-        open={showModal}
+        open={showModal || !!editCapital}
         onClose={closeModal}
-        title="Add Capital Record"
+        title={editCapital ? 'Edit Capital Record' : 'Add Capital Record'}
         size="sm"
         footer={
           <>
             <Button variant="outline" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={createMutation.isPending}>
-              Save
+            <Button
+              onClick={handleSubmit}
+              loading={createMutation.isPending || updateMutation.isPending}
+            >
+              {editCapital ? 'Save Changes' : 'Save'}
             </Button>
           </>
         }
@@ -256,6 +322,14 @@ export default function CapitalPage() {
           />
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
+        title="Delete Capital Record"
+        message="Delete this capital record permanently?"
+      />
     </div>
   );
 }

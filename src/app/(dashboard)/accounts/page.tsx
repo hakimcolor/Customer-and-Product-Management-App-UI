@@ -9,6 +9,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ArrowLeftRight,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +18,7 @@ import { Card, StatCard } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatCurrency, formatDateTime } from '@/lib/utils/format';
 import { toast } from '@/components/ui/Toast';
 import { accountsApi } from '@/lib/api/endpoints';
@@ -54,6 +57,8 @@ const emptyTxForm = { amount: '', description: '', toAccountId: '' };
 export default function AccountsPage() {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [editAccount, setEditAccount] = useState<Account | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [txModal, setTxModal] = useState<
     'deposit' | 'withdraw' | 'transfer' | null
   >(null);
@@ -105,6 +110,28 @@ export default function AccountsPage() {
       setAccForm(emptyAccForm);
     },
     onError: () => toast.error('Failed to create account'),
+  });
+
+  const updateAcc = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      accountsApi.update(id, data),
+    onSuccess: () => {
+      toast.success('Account updated');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      setEditAccount(null);
+      setAccForm(emptyAccForm);
+    },
+    onError: () => toast.error('Failed to update account'),
+  });
+
+  const deleteAcc = useMutation({
+    mutationFn: (id: number) => accountsApi.delete(String(id)),
+    onSuccess: () => {
+      toast.success('Account deleted');
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      setDeleteId(null);
+    },
+    onError: () => toast.error('Failed to delete account'),
   });
 
   const deposit = useMutation({
@@ -284,6 +311,27 @@ export default function AccountsPage() {
                     className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors font-medium"
                   >
                     <ArrowLeftRight size={12} /> Transfer
+                  </button>
+                </div>
+                <div className="flex gap-1.5 mt-2">
+                  <button
+                    onClick={() => {
+                      setEditAccount(acc);
+                      setAccForm({
+                        name: acc.name,
+                        accountType: acc.accountType,
+                        openingBalance: '0',
+                      });
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg border border-border text-foreground hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors font-medium"
+                  >
+                    <Edit size={12} /> Edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteId(acc.id)}
+                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors font-medium"
+                  >
+                    <Trash2 size={12} /> Delete
                   </button>
                 </div>
               </Card>
@@ -497,6 +545,80 @@ export default function AccountsPage() {
           />
         </div>
       </Modal>
+
+      {/* Edit Account Modal */}
+      <Modal
+        open={!!editAccount}
+        onClose={() => {
+          setEditAccount(null);
+          setAccForm(emptyAccForm);
+        }}
+        title="Edit Account"
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditAccount(null);
+                setAccForm(emptyAccForm);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                editAccount &&
+                updateAcc.mutate({
+                  id: String(editAccount.id),
+                  data: {
+                    name: accForm.name,
+                    accountType: accForm.accountType,
+                  },
+                })
+              }
+              loading={updateAcc.isPending}
+            >
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="Account Name *"
+            placeholder="e.g. Islami Bank"
+            value={accForm.name}
+            onChange={(e) =>
+              setAccForm((f) => ({ ...f, name: e.target.value }))
+            }
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-foreground">
+              Account Type
+            </label>
+            <select
+              value={accForm.accountType}
+              onChange={(e) =>
+                setAccForm((f) => ({ ...f, accountType: e.target.value }))
+              }
+              className="cursor-pointer w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+            >
+              <option value="CASH">Cash</option>
+              <option value="BANK">Bank</option>
+              <option value="MOBILE_BANKING">Mobile Banking</option>
+            </select>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => deleteId && deleteAcc.mutate(deleteId)}
+        title="Delete Account"
+        message="Delete this account? All transaction history will also be removed."
+      />
     </div>
   );
 }
