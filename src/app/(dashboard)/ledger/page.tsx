@@ -112,6 +112,14 @@ export default function LedgerPage() {
   const partyList = applied.partyType === 'customer' ? customers : suppliers;
   const selectedParty = partyList.find((p) => String(p.id) === applied.partyId);
 
+  function applyFilters() {
+    setApplied({ partyType, partyId, fromDate, toDate });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') applyFilters();
+  }
+
   return (
     <div>
       <PageHeader
@@ -179,6 +187,7 @@ export default function LedgerPage() {
             <select
               value={partyId}
               onChange={(e) => setPartyId(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors min-w-45"
             >
               <option value="">
@@ -200,6 +209,7 @@ export default function LedgerPage() {
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>
@@ -212,17 +222,13 @@ export default function LedgerPage() {
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
           </div>
 
           <div className="flex gap-2">
-            <Button
-              onClick={() =>
-                setApplied({ partyType, partyId, fromDate, toDate })
-              }
-              loading={isFetching}
-            >
+            <Button onClick={applyFilters} loading={isFetching}>
               Generate
             </Button>
             <Button
