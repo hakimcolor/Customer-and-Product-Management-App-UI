@@ -5,6 +5,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Edit,
   MoreVertical,
   DollarSign,
   TrendingDown,
@@ -64,6 +65,7 @@ export default function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Partial<typeof emptyForm>>({});
@@ -111,10 +113,35 @@ export default function ExpensesPage() {
     onError: () => toast.error('Failed to delete'),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      expensesApi.update(String(id), data),
+    onSuccess: () => {
+      toast.success('Expense updated');
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      closeModal();
+    },
+    onError: () => toast.error('Failed to update expense'),
+  });
+
   function closeModal() {
     setAddOpen(false);
+    setEditExpense(null);
     setForm(emptyForm);
     setFormErrors({});
+  }
+
+  function openEdit(e: Expense) {
+    setEditExpense(e);
+    setForm({
+      category: e.category,
+      description: e.description ?? '',
+      amount: String(e.amount),
+      accountId: '',
+      date: e.date.split('T')[0],
+    });
+    setFormErrors({});
+    setOpenMenuId(null);
   }
 
   function validate() {
@@ -127,13 +154,18 @@ export default function ExpensesPage() {
 
   function handleSubmit() {
     if (!validate()) return;
-    createMutation.mutate({
+    const payload = {
       category: form.category,
       description: form.description || undefined,
       amount: parseFloat(form.amount),
       accountId: form.accountId ? parseInt(form.accountId) : undefined,
       date: form.date,
-    });
+    };
+    if (editExpense) {
+      updateMutation.mutate({ id: editExpense.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   }
 
   const expenses = data?.data ?? [];
@@ -292,6 +324,11 @@ export default function ExpensesPage() {
                           onClose={() => setOpenMenuId(null)}
                           items={[
                             {
+                              label: 'Edit',
+                              icon: <Edit size={14} />,
+                              onClick: () => openEdit(e),
+                            },
+                            {
                               label: 'Delete',
                               icon: <Trash2 size={14} />,
                               danger: true,
@@ -328,17 +365,20 @@ export default function ExpensesPage() {
       />
 
       <Modal
-        open={addOpen}
+        open={addOpen || !!editExpense}
         onClose={closeModal}
-        title="Add Expense"
+        title={editExpense ? 'Edit Expense' : 'Add Expense'}
         size="sm"
         footer={
           <>
             <Button variant="outline" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={createMutation.isPending}>
-              Save
+            <Button
+              onClick={handleSubmit}
+              loading={createMutation.isPending || updateMutation.isPending}
+            >
+              {editExpense ? 'Save Changes' : 'Save'}
             </Button>
           </>
         }

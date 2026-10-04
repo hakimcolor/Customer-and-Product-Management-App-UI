@@ -67,10 +67,11 @@ export default function CustomersPage() {
 
   // Modal & dialogs
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
-  // Add customer form
+  // Form
   const [form, setForm] = useState({ name: '', phone: '', address: '' });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -124,6 +125,20 @@ export default function CustomersPage() {
     onError: () => toast.error('Failed to add customer'),
   });
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: typeof form }) =>
+      customersApi.update(String(id), data),
+    onSuccess: () => {
+      toast.success('Customer updated');
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setEditCustomer(null);
+      setForm({ name: '', phone: '', address: '' });
+      setFormErrors({});
+    },
+    onError: () => toast.error('Failed to update customer'),
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (id: number) => customersApi.delete(String(id)),
@@ -146,6 +161,19 @@ export default function CustomersPage() {
   function handleAddSubmit() {
     if (!validateForm()) return;
     createMutation.mutate(form);
+  }
+
+  function openEdit(c: Customer) {
+    setEditCustomer(c);
+    setForm({ name: c.name, phone: c.phone ?? '', address: c.address ?? '' });
+    setFormErrors({});
+    setOpenMenuId(null);
+  }
+
+  function handleEditSubmit() {
+    if (!validateForm()) return;
+    if (!editCustomer) return;
+    updateMutation.mutate({ id: editCustomer.id, data: form });
   }
 
   return (
@@ -395,7 +423,7 @@ export default function CustomersPage() {
                             {
                               label: 'Edit',
                               icon: <Edit size={14} />,
-                              onClick: () => toast.success('Edit coming soon'),
+                              onClick: () => openEdit(c),
                             },
                             {
                               label: 'Delete',
@@ -490,6 +518,66 @@ export default function CustomersPage() {
         title="Delete Customer"
         message="Are you sure you want to delete this customer? This will deactivate their account."
       />
+
+      {/* Edit Customer Modal */}
+      <Modal
+        open={!!editCustomer}
+        onClose={() => {
+          setEditCustomer(null);
+          setForm({ name: '', phone: '', address: '' });
+          setFormErrors({});
+        }}
+        title="Edit Customer"
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditCustomer(null);
+                setForm({ name: '', phone: '', address: '' });
+                setFormErrors({});
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              loading={updateMutation.isPending}
+            >
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-5">
+          <Input
+            label="Full Name *"
+            placeholder="e.g. Rahim Enterprise"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            error={formErrors.name}
+            leftIcon={<User size={15} />}
+          />
+          <Input
+            label="Phone Number *"
+            placeholder="e.g. 01700000000"
+            value={form.phone}
+            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            error={formErrors.phone}
+            leftIcon={<Phone size={15} />}
+          />
+          <Input
+            label="Address (optional)"
+            placeholder="e.g. Motijheel, Dhaka"
+            value={form.address}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, address: e.target.value }))
+            }
+            leftIcon={<MapPin size={15} />}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
