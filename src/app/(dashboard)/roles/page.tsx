@@ -125,13 +125,17 @@ export default function RolesPage() {
                     >
                       <div className="flex flex-col items-center gap-1.5">
                         <span>{action}</span>
-                        <input
-                          type="checkbox"
-                          checked={isAllChecked(action)}
-                          onChange={(e) => toggleAll(action, e.target.checked)}
-                          className="cursor-pointer accent-[var(--primary)] w-4 h-4"
-                          title={`Toggle all ${action}`}
-                        />
+                        <label className="cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isAllChecked(action)}
+                            onChange={(e) =>
+                              toggleAll(action, e.target.checked)
+                            }
+                            className="cursor-pointer accent-[var(--primary)] w-4 h-4"
+                            title={`Toggle all ${action}`}
+                          />
+                        </label>
                       </div>
                     </th>
                   ))}
@@ -141,19 +145,21 @@ export default function RolesPage() {
                 {MODULES.map((module) => (
                   <tr
                     key={module}
-                    className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors"
+                    className="hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 font-medium text-[var(--foreground)]">
                       {module}
                     </td>
                     {ACTIONS.map((action) => (
                       <td key={action} className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={permissions[module]?.[action] ?? false}
-                          onChange={() => toggle(module, action)}
-                          className="cursor-pointer accent-[var(--primary)] w-4 h-4"
-                        />
+                        <label className="cursor-pointer flex items-center justify-center w-full h-full">
+                          <input
+                            type="checkbox"
+                            checked={permissions[module]?.[action] ?? false}
+                            onChange={() => toggle(module, action)}
+                            className="cursor-pointer accent-[var(--primary)] w-4 h-4"
+                          />
+                        </label>
                       </td>
                     ))}
                   </tr>
