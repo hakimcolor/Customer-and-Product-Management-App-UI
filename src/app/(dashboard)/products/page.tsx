@@ -6,7 +6,6 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye,
   Copy,
   MoreVertical,
   Package,
@@ -433,14 +432,6 @@ export default function ProductsPage() {
                           open={openMenuId === p.id}
                           onClose={() => setOpenMenuId(null)}
                           items={[
-                            {
-                              label: 'View / Edit',
-                              icon: <Eye size={14} />,
-                              onClick: () => {
-                                setOpenMenuId(null);
-                                openEdit(p);
-                              },
-                            },
                             {
                               label: 'Edit',
                               icon: <Edit size={14} />,
