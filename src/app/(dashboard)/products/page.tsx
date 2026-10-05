@@ -50,6 +50,10 @@ interface Category {
   id: number;
   name: string;
 }
+interface Brand {
+  id: number;
+  name: string;
+}
 
 type FormState = {
   title: string;
@@ -58,6 +62,7 @@ type FormState = {
   purchasePrice: string;
   alertQuantity: string;
   categoryId: string;
+  brandId: string;
 };
 const emptyForm: FormState = {
   title: '',
@@ -66,6 +71,7 @@ const emptyForm: FormState = {
   purchasePrice: '0',
   alertQuantity: '5',
   categoryId: '',
+  brandId: '',
 };
 
 export default function ProductsPage() {
@@ -102,6 +108,14 @@ export default function ProductsPage() {
     queryKey: ['categories'],
     queryFn: async () => {
       const res = await productsApi.getCategories();
+      return res.data?.data ?? res.data;
+    },
+  });
+
+  const { data: brands } = useQuery<Brand[]>({
+    queryKey: ['brands'],
+    queryFn: async () => {
+      const res = await productsApi.getBrands();
       return res.data?.data ?? res.data;
     },
   });
@@ -176,7 +190,8 @@ export default function ProductsPage() {
       sellingPrice: String(p.sellingPrice),
       purchasePrice: String(p.purchasePrice),
       alertQuantity: String(p.alertQuantity),
-      categoryId: String(p.category ? '' : ''),
+      categoryId: '',
+      brandId: '',
     });
     setFormErrors({});
     setShowModal(true);
@@ -208,6 +223,7 @@ export default function ProductsPage() {
       alertQuantity: parseInt(form.alertQuantity) || 5,
       ...(form.sku && { sku: form.sku }),
       ...(form.categoryId && { categoryId: parseInt(form.categoryId) }),
+      ...(form.brandId && { brandId: parseInt(form.brandId) }),
     };
     if (editProduct)
       updateMutation.mutate({ id: String(editProduct.id), data: payload });
@@ -546,6 +562,25 @@ export default function ProductsPage() {
               {(categories ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--foreground)]">
+              Brand
+            </label>
+            <select
+              value={form.brandId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, brandId: e.target.value }))
+              }
+              className="cursor-pointer px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-colors"
+            >
+              <option value="">Select brand...</option>
+              {(brands ?? []).map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
                 </option>
               ))}
             </select>
