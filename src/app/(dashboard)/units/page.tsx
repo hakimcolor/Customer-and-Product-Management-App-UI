@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
-import apiClient from '@/lib/api/client';
+import { unitsApi } from '@/lib/api/endpoints';
 
 interface Unit {
   id: number;
@@ -31,14 +31,14 @@ export default function UnitsPage() {
   const { data, isLoading } = useQuery<Unit[]>({
     queryKey: ['units'],
     queryFn: async () => {
-      const res = await apiClient.get('/products/units');
+      const res = await unitsApi.getAll();
       const d = res.data?.data ?? res.data;
       return d?.data ?? d;
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: typeof emptyForm) => apiClient.post('/products/units', d),
+    mutationFn: (d: typeof emptyForm) => unitsApi.create(d),
     onSuccess: () => {
       toast.success('Unit created');
       qc.invalidateQueries({ queryKey: ['units'] });
@@ -49,7 +49,7 @@ export default function UnitsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof emptyForm }) =>
-      apiClient.put(`/products/units/${id}`, data),
+      unitsApi.update(String(id), data),
     onSuccess: () => {
       toast.success('Unit updated');
       qc.invalidateQueries({ queryKey: ['units'] });
@@ -59,7 +59,7 @@ export default function UnitsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiClient.delete(`/products/units/${id}`),
+    mutationFn: (id: number) => unitsApi.delete(String(id)),
     onSuccess: () => {
       toast.success('Unit deleted');
       qc.invalidateQueries({ queryKey: ['units'] });

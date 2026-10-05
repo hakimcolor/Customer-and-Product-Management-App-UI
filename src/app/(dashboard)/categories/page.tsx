@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
-import apiClient from '@/lib/api/client';
+import { categoriesApi } from '@/lib/api/endpoints';
 
 interface Category {
   id: number;
@@ -32,15 +32,14 @@ export default function CategoriesPage() {
   const { data, isLoading } = useQuery<Category[]>({
     queryKey: ['categories'],
     queryFn: async () => {
-      const res = await apiClient.get('/products/categories');
+      const res = await categoriesApi.getAll();
       const d = res.data?.data ?? res.data;
       return d?.data ?? d;
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: typeof emptyForm) =>
-      apiClient.post('/products/categories', d),
+    mutationFn: (d: typeof emptyForm) => categoriesApi.create(d),
     onSuccess: () => {
       toast.success('Category created');
       qc.invalidateQueries({ queryKey: ['categories'] });
@@ -51,7 +50,7 @@ export default function CategoriesPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof emptyForm }) =>
-      apiClient.put(`/products/categories/${id}`, data),
+      categoriesApi.update(String(id), data),
     onSuccess: () => {
       toast.success('Category updated');
       qc.invalidateQueries({ queryKey: ['categories'] });
@@ -61,7 +60,7 @@ export default function CategoriesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiClient.delete(`/products/categories/${id}`),
+    mutationFn: (id: number) => categoriesApi.delete(String(id)),
     onSuccess: () => {
       toast.success('Category deleted');
       qc.invalidateQueries({ queryKey: ['categories'] });

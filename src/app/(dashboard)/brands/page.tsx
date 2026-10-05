@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
-import apiClient from '@/lib/api/client';
+import { brandsApi } from '@/lib/api/endpoints';
 
 interface Brand {
   id: number;
@@ -32,14 +32,14 @@ export default function BrandsPage() {
   const { data, isLoading } = useQuery<Brand[]>({
     queryKey: ['brands'],
     queryFn: async () => {
-      const res = await apiClient.get('/products/brands');
+      const res = await brandsApi.getAll();
       const d = res.data?.data ?? res.data;
       return d?.data ?? d;
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: typeof emptyForm) => apiClient.post('/products/brands', d),
+    mutationFn: (d: typeof emptyForm) => brandsApi.create(d),
     onSuccess: () => {
       toast.success('Brand created');
       qc.invalidateQueries({ queryKey: ['brands'] });
@@ -50,7 +50,7 @@ export default function BrandsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof emptyForm }) =>
-      apiClient.put(`/products/brands/${id}`, data),
+      brandsApi.update(String(id), data),
     onSuccess: () => {
       toast.success('Brand updated');
       qc.invalidateQueries({ queryKey: ['brands'] });
@@ -60,7 +60,7 @@ export default function BrandsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiClient.delete(`/products/brands/${id}`),
+    mutationFn: (id: number) => brandsApi.delete(String(id)),
     onSuccess: () => {
       toast.success('Brand deleted');
       qc.invalidateQueries({ queryKey: ['brands'] });
