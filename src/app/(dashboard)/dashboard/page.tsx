@@ -69,8 +69,10 @@ export default function DashboardPage() {
   const { data: chartData } = useQuery({
     queryKey: ['monthly-chart'],
     queryFn: async () => {
-      const res = await dashboardApi.getMonthlyChart();
-      return res.data?.data ?? res.data;
+      const res = await dashboardApi.getStats({ period: 'month' });
+      const data = res.data?.data ?? res.data;
+      // Backend returns monthlySales or salesChart array
+      return data?.monthlySales ?? data?.salesChart ?? data?.chartData ?? [];
     },
   });
 

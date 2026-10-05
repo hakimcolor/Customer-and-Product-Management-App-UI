@@ -69,8 +69,11 @@ export default function SettingsPage() {
 
   const saveMutation = useMutation({
     mutationFn: (data: Record<string, string>) => {
-      const bulk = Object.entries(data).map(([key, value]) => ({ key, value }));
-      return settingsApi.update({ settings: bulk });
+      const settings = Object.entries(data).map(([key, value]) => ({
+        key,
+        value,
+      }));
+      return settingsApi.update({ settings });
     },
     onSuccess: () => toast.success('Settings saved'),
     onError: () => toast.error('Failed to save settings'),
