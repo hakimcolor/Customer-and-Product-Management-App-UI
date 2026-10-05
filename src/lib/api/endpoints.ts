@@ -204,6 +204,36 @@ export const notificationsApi = {
   markAllRead: () => apiClient.patch('/notifications/read-all'),
 };
 
+// Categories
+export const categoriesApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/products/categories', { params }),
+  create: (data: unknown) => apiClient.post('/products/categories', data),
+  update: (id: string, data: unknown) =>
+    apiClient.put(`/products/categories/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/products/categories/${id}`),
+};
+
+// Brands
+export const brandsApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/products/brands', { params }),
+  create: (data: unknown) => apiClient.post('/products/brands', data),
+  update: (id: string, data: unknown) =>
+    apiClient.put(`/products/brands/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/products/brands/${id}`),
+};
+
+// Units
+export const unitsApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    apiClient.get('/products/units', { params }),
+  create: (data: unknown) => apiClient.post('/products/units', data),
+  update: (id: string, data: unknown) =>
+    apiClient.put(`/products/units/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/products/units/${id}`),
+};
+
 // Audit
 export const auditApi = {
   getAll: (params?: Record<string, unknown>) =>
