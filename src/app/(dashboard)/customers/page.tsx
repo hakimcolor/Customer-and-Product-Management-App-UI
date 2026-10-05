@@ -72,7 +72,12 @@ export default function CustomersPage() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // Form
-  const [form, setForm] = useState({ name: '', phone: '', address: '' });
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+  });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Build query params
@@ -119,7 +124,7 @@ export default function CustomersPage() {
       toast.success('Customer added successfully');
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setShowAddModal(false);
-      setForm({ name: '', phone: '', address: '' });
+      setForm({ name: '', phone: '', email: '', address: '' });
       setFormErrors({});
     },
     onError: () => toast.error('Failed to add customer'),
@@ -165,7 +170,12 @@ export default function CustomersPage() {
 
   function openEdit(c: Customer) {
     setEditCustomer(c);
-    setForm({ name: c.name, phone: c.phone ?? '', address: c.address ?? '' });
+    setForm({
+      name: c.name,
+      phone: c.phone ?? '',
+      email: c.email ?? '',
+      address: c.address ?? '',
+    });
     setFormErrors({});
     setOpenMenuId(null);
   }
@@ -500,6 +510,13 @@ export default function CustomersPage() {
             leftIcon={<Phone size={15} />}
           />
           <Input
+            label="Email (optional)"
+            type="email"
+            placeholder="e.g. customer@example.com"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+          <Input
             label="Address (optional)"
             placeholder="e.g. Motijheel, Dhaka"
             value={form.address}
@@ -524,7 +541,7 @@ export default function CustomersPage() {
         open={!!editCustomer}
         onClose={() => {
           setEditCustomer(null);
-          setForm({ name: '', phone: '', address: '' });
+          setForm({ name: '', phone: '', email: '', address: '' });
           setFormErrors({});
         }}
         title="Edit Customer"
@@ -535,7 +552,7 @@ export default function CustomersPage() {
               variant="outline"
               onClick={() => {
                 setEditCustomer(null);
-                setForm({ name: '', phone: '', address: '' });
+                setForm({ name: '', phone: '', email: '', address: '' });
                 setFormErrors({});
               }}
             >
@@ -566,6 +583,13 @@ export default function CustomersPage() {
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             error={formErrors.phone}
             leftIcon={<Phone size={15} />}
+          />
+          <Input
+            label="Email (optional)"
+            type="email"
+            placeholder="e.g. customer@example.com"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           />
           <Input
             label="Address (optional)"
