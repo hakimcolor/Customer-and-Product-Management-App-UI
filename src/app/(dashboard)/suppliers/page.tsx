@@ -42,7 +42,7 @@ interface SuppliersResponse {
   totalPages: number;
 }
 
-const emptyForm = { name: '', phone: '', address: '' };
+const emptyForm = { name: '', phone: '', email: '', address: '' };
 
 export default function SuppliersPage() {
   const qc = useQueryClient();
@@ -110,7 +110,12 @@ export default function SuppliersPage() {
   }
   function openEdit(s: Supplier) {
     setEditSupplier(s);
-    setForm({ name: s.name, phone: s.phone ?? '', address: s.address ?? '' });
+    setForm({
+      name: s.name,
+      phone: s.phone ?? '',
+      email: s.email ?? '',
+      address: s.address ?? '',
+    });
     setFormErrors({});
     setShowModal(true);
   }
@@ -389,6 +394,13 @@ export default function SuppliersPage() {
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             error={formErrors.phone}
             leftIcon={<Phone size={15} />}
+          />
+          <Input
+            label="Email (optional)"
+            type="email"
+            placeholder="e.g. supplier@example.com"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           />
           <Input
             label="Address (optional)"
